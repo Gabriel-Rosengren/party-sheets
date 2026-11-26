@@ -28,7 +28,7 @@ export function SheetCard({ sheet, online, selected, onSelect }: Props) {
       type="button"
       onClick={onSelect}
       aria-pressed={selected}
-      className={`card w-full p-4 text-left transition hover:border-stone-600 ${flashKey ? 'flash' : ''} ${
+      className={`card flex h-full w-full flex-col p-4 text-left transition hover:border-stone-600 ${flashKey ? 'flash' : ''} ${
         selected ? 'border-amber-500/70' : ''
       }`}
     >
