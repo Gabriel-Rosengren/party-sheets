@@ -3,6 +3,7 @@ import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { authRouter } from './routes/auth';
 import { campaignsRouter } from './routes/campaigns';
+import { sheetsRouter } from './routes/sheets';
 import { errorHandler } from './lib/error-handler';
 import type { RealtimeNotifier } from './realtime/notifier';
 
@@ -25,6 +26,7 @@ export const createApp = ({ realtime }: AppDeps) => {
 
   app.use('/api/auth', authRouter);
   app.use('/api/campaigns', campaignsRouter(realtime));
+  app.use('/api/sheets', sheetsRouter(realtime));
 
   app.use('/api', (_req, res) => {
     res.status(404).json({ error: 'Not found' });
