@@ -124,6 +124,9 @@ update live over WebSockets.
   all work lands through pull requests.
 - Opened [PR #1](https://github.com/Gabriel-Rosengren/party-sheets/pull/1) into `main`. CI
   (typecheck, test, build) runs on every PR. Merging is left to Gabriel.
+- First CI run passed (31s), with a warning that `actions/checkout@v4` and
+  `actions/setup-node@v4` target the deprecated Node 20 runtime. Bumped both to their latest
+  major, v7, which runs on Node 24.
 
 ### Known limitations / next steps
 
