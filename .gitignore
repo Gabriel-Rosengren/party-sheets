@@ -1,0 +1,21 @@
+node_modules/
+dist/
+coverage/
+*.log
+
+# env & local databases
+.env
+.env.*
+!.env.example
+*.db
+*.db-journal
+
+# editors / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# local Claude Code tooling
+.claude/

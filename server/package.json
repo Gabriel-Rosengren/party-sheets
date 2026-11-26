@@ -1,0 +1,45 @@
+{
+  "name": "@party-sheets/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch --import tsx --env-file=.env src/index.ts",
+    "build": "tsup",
+    "start": "node --env-file=.env dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:migrate": "prisma migrate dev",
+    "db:studio": "prisma studio",
+    "postinstall": "prisma generate",
+    "db:seed": "tsx --env-file=.env prisma/seed.ts"
+  },
+  "devDependencies": {
+    "@types/cookie-parser": "^1.4.10",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^24.19.4",
+    "@types/supertest": "^7.2.1",
+    "prisma": "^7.10.1",
+    "socket.io-client": "^4.8.4",
+    "supertest": "^7.3.2",
+    "tsup": "^9.0.0",
+    "tsx": "^4.23.15",
+    "vitest": "^5.1.2"
+  },
+  "dependencies": {
+    "@party-sheets/shared": "*",
+    "@prisma/adapter-better-sqlite3": "^7.10.1",
+    "@prisma/client": "^7.10.1",
+    "bcryptjs": "^3.0.3",
+    "cookie": "^1.1.1",
+    "cookie-parser": "^1.4.7",
+    "express": "^5.3.0",
+    "express-rate-limit": "^8.7.5",
+    "helmet": "^8.3.0",
+    "jsonwebtoken": "^9.0.3",
+    "socket.io": "^4.8.4",
+    "zod": "^4.6.7"
+  }
+}
