@@ -4,15 +4,16 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch --env-file=.env src/index.ts",
-    "build": "tsup src/index.ts --format esm --target node20 --noExternal @party-sheets/shared --clean",
+    "dev": "node --watch --import tsx --env-file=.env src/index.ts",
+    "build": "tsup",
     "start": "node --env-file=.env dist/index.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "db:seed": "tsx --env-file=.env prisma/seed.ts"
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.10",
