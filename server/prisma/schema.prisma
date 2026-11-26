@@ -1,0 +1,64 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id           String       @id @default(cuid())
+  email        String       @unique
+  displayName  String
+  passwordHash String
+  createdAt    DateTime     @default(now())
+  memberships  Membership[]
+  sheets       Sheet[]
+  campaignsRun Campaign[]   @relation("CampaignDm")
+}
+
+model Campaign {
+  id          String       @id @default(cuid())
+  name        String
+  inviteCode  String       @unique
+  dmId        String
+  dm          User         @relation("CampaignDm", fields: [dmId], references: [id])
+  createdAt   DateTime     @default(now())
+  memberships Membership[]
+  sheets      Sheet[]
+}
+
+enum Role {
+  DM
+  PLAYER
+}
+
+model Membership {
+  id         String   @id @default(cuid())
+  userId     String
+  campaignId String
+  role       Role
+  joinedAt   DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, campaignId])
+  @@index([campaignId])
+}
+
+/// One character sheet per player per campaign (MVP). `data` holds the JSON-encoded
+/// SheetData from @party-sheets/shared; `version` increments on every save.
+model Sheet {
+  id         String   @id @default(cuid())
+  campaignId String
+  ownerId    String
+  data       String
+  version    Int      @default(1)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  owner      User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, ownerId])
+}
