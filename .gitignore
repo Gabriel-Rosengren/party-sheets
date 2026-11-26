@@ -16,3 +16,6 @@ coverage/
 .idea/
 .DS_Store
 Thumbs.db
+
+# local Claude Code tooling
+.claude/
