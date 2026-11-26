@@ -10,7 +10,7 @@ and use conventional-commit prefixes (`feat`, `fix`, `chore`, `ci`, `docs`).
 
 ## 2026-11-26: Session 1, scaffold to MVP
 
-**Branch:** `feat/mvp-scaffold` (off `main`, not pushed: no remote configured yet)
+**Branch:** `feat/mvp-scaffold` (off `main`) → [PR #1](https://github.com/Gabriel-Rosengren/party-sheets/pull/1)
 **Pairing:** Gabriel + Claude Code (Claude Opus 5.5)
 
 ### Goal
@@ -111,7 +111,19 @@ update live over WebSockets.
     Presence goes offline when the player disconnects.
   - signing in as that player returns them to the page they were on. Editing level 3 → 4
     shows "Editing…" then "All changes saved", and the value persists across a reload.
-- Not yet verified: the CI workflow on GitHub (no remote yet), and production deployment.
+- Not yet verified: production deployment.
+
+### GitHub setup (2026-11-27)
+
+- Installed the GitHub CLI (`winget install GitHub.cli`); Gabriel signed in with `gh auth login`.
+- Created the public repo
+  [Gabriel-Rosengren/party-sheets](https://github.com/Gabriel-Rosengren/party-sheets) and pushed
+  `feat/mvp-scaffold`.
+- Remote `main` was created via the GitHub API, pointing at the empty `chore: initialize
+  repository` commit, and set as the default branch. Nothing with code was pushed to `main`;
+  all work lands through pull requests.
+- Opened [PR #1](https://github.com/Gabriel-Rosengren/party-sheets/pull/1) into `main`. CI
+  (typecheck, test, build) runs on every PR. Merging is left to Gabriel.
 
 ### Known limitations / next steps
 
