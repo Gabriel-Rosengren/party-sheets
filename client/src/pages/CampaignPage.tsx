@@ -31,11 +31,18 @@ export function CampaignPage() {
 
   const load = useCallback(async () => {
     try {
-      const [c, s] = await Promise.all([api.getCampaign(campaignId), api.getCampaignSheets(campaignId)]);
+      const [c, s] = await Promise.all([
+        api.getCampaign(campaignId),
+        api.getCampaignSheets(campaignId),
+      ]);
       setCampaign(c.campaign);
       setSheets((prev) => s.sheets.reduce(mergeSheet, prev ?? []));
     } catch (err) {
-      setError(err instanceof ApiRequestError && err.status === 404 ? 'Campaign not found.' : 'Could not load campaign.');
+      setError(
+        err instanceof ApiRequestError && err.status === 404
+          ? 'Campaign not found.'
+          : 'Could not load campaign.',
+      );
     }
   }, [campaignId]);
 
@@ -58,7 +65,9 @@ export function CampaignPage() {
     return (
       <div className="card mx-auto max-w-md p-8 text-center">
         <p className="mb-4 text-stone-300">{error}</p>
-        <Link to="/" className="btn btn-ghost">Back to campaigns</Link>
+        <Link to="/" className="btn btn-ghost">
+          Back to campaigns
+        </Link>
       </div>
     );
   }
@@ -70,13 +79,18 @@ export function CampaignPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <Link to="/" className="text-sm text-stone-400 hover:text-stone-200">← Campaigns</Link>
+          <Link to="/" className="text-sm text-stone-400 hover:text-stone-200">
+            ← Campaigns
+          </Link>
           <h1 className="mt-1 font-display text-3xl text-stone-100">{campaign.name}</h1>
           <p className="text-sm text-stone-400">
             {campaign.role === 'DM' ? 'You are the Dungeon Master' : 'Your character sheet'}
           </p>
         </div>
-        <span className="inline-flex items-center gap-2 rounded-full border border-stone-800 px-3 py-1 text-xs text-stone-300" role="status">
+        <span
+          className="inline-flex items-center gap-2 rounded-full border border-stone-800 px-3 py-1 text-xs text-stone-300"
+          role="status"
+        >
           <span className={`size-2 rounded-full ${live.dot}`} aria-hidden />
           {live.text}
         </span>

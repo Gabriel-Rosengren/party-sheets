@@ -45,7 +45,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setState({ status: 'anonymous', user: null });
   }, []);
 
-  const value = useMemo(() => ({ state, login, register, logout }), [state, login, register, logout]);
+  const value = useMemo(
+    () => ({ state, login, register, logout }),
+    [state, login, register, logout],
+  );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

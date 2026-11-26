@@ -52,19 +52,40 @@ function AuthForm({ mode }: { mode: Mode }) {
 
       <form onSubmit={onSubmit} className="card space-y-4 p-6" noValidate>
         <div>
-          <label htmlFor="email" className="label">Email</label>
-          <input id="email" type="email" autoComplete="email" required className="input" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <label htmlFor="email" className="label">
+            Email
+          </label>
+          <input
+            id="email"
+            type="email"
+            autoComplete="email"
+            required
+            className="input"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
           {fieldError('email')}
         </div>
         {isRegister && (
           <div>
-            <label htmlFor="displayName" className="label">Display name</label>
-            <input id="displayName" autoComplete="nickname" required className="input" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+            <label htmlFor="displayName" className="label">
+              Display name
+            </label>
+            <input
+              id="displayName"
+              autoComplete="nickname"
+              required
+              className="input"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+            />
             {fieldError('displayName')}
           </div>
         )}
         <div>
-          <label htmlFor="password" className="label">Password</label>
+          <label htmlFor="password" className="label">
+            Password
+          </label>
           <input
             id="password"
             type="password"
@@ -75,12 +96,16 @@ function AuthForm({ mode }: { mode: Mode }) {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
-          {isRegister && !fieldErrors.password && <p className="mt-1 text-xs text-stone-500">At least 8 characters.</p>}
+          {isRegister && !fieldErrors.password && (
+            <p className="mt-1 text-xs text-stone-500">At least 8 characters.</p>
+          )}
           {fieldError('password')}
         </div>
 
         {error && !Object.keys(fieldErrors).length && (
-          <p role="alert" className="rounded-md bg-red-500/10 px-3 py-2 text-sm text-red-300">{error}</p>
+          <p role="alert" className="rounded-md bg-red-500/10 px-3 py-2 text-sm text-red-300">
+            {error}
+          </p>
         )}
 
         <button type="submit" className="btn btn-primary w-full" disabled={submitting}>

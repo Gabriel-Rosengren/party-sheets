@@ -21,7 +21,10 @@ export function HpBar({ hp }: { hp: SheetData['hp'] }) {
         aria-valuemax={hp.max}
         aria-valuenow={hp.current}
       >
-        <div className={`h-full ${color} transition-all duration-500`} style={{ width: `${pct}%` }} />
+        <div
+          className={`h-full ${color} transition-all duration-500`}
+          style={{ width: `${pct}%` }}
+        />
       </div>
     </div>
   );

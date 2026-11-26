@@ -10,8 +10,18 @@ import { userIdFromCookieHeader } from '../auth/session';
 import { env } from '../env';
 import type { RealtimeNotifier } from './notifier';
 
-export type IoServer = Server<ClientToServerEvents, ServerToClientEvents, Record<string, never>, SocketData>;
-type IoSocket = Socket<ClientToServerEvents, ServerToClientEvents, Record<string, never>, SocketData>;
+export type IoServer = Server<
+  ClientToServerEvents,
+  ServerToClientEvents,
+  Record<string, never>,
+  SocketData
+>;
+type IoSocket = Socket<
+  ClientToServerEvents,
+  ServerToClientEvents,
+  Record<string, never>,
+  SocketData
+>;
 
 const CAMPAIGN_ROOM = /^campaign:([^:]+)$/;
 

@@ -4,7 +4,10 @@ import { sheetDataSchema, type SheetData } from './sheet';
 // ---------- Request bodies (validated on the server, reused for client forms) ----------
 
 export const registerSchema = z.object({
-  email: z.email().max(254).transform((e) => e.toLowerCase()),
+  email: z
+    .email()
+    .max(254)
+    .transform((e) => e.toLowerCase()),
   displayName: z.string().trim().min(2).max(40),
   password: z.string().min(8).max(128),
 });

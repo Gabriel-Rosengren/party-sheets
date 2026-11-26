@@ -16,10 +16,20 @@ interface Props {
   onChange?: (next: SheetData) => void;
 }
 
-function Section({ title, children, className = '' }: { title: string; children: React.ReactNode; className?: string }) {
+function Section({
+  title,
+  children,
+  className = '',
+}: {
+  title: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
     <section className={`card p-4 ${className}`}>
-      <h3 className="mb-3 font-display text-sm tracking-widest text-amber-400 uppercase">{title}</h3>
+      <h3 className="mb-3 font-display text-sm tracking-widest text-amber-400 uppercase">
+        {title}
+      </h3>
       {children}
     </section>
   );
@@ -53,12 +63,50 @@ export function SheetEditor({ data, onChange }: Props) {
             readOnly={readOnly}
             placeholder="Thia Brightwater"
           />
-          <TextField label="Class" value={data.className} onChange={(v) => set('className', v)} readOnly={readOnly} placeholder="Rogue" />
-          <NumberField label="Level" value={data.level} min={1} max={20} onChange={(v) => set('level', v)} readOnly={readOnly} />
-          <TextField label="Race" value={data.race} onChange={(v) => set('race', v)} readOnly={readOnly} placeholder="Half-elf" />
-          <TextField label="Background" value={data.background} onChange={(v) => set('background', v)} readOnly={readOnly} placeholder="Urchin" />
-          <TextField label="Alignment" value={data.alignment} onChange={(v) => set('alignment', v)} readOnly={readOnly} placeholder="Chaotic good" />
-          <NumberField label="Experience" value={data.experience} min={0} max={1_000_000} onChange={(v) => set('experience', v)} readOnly={readOnly} />
+          <TextField
+            label="Class"
+            value={data.className}
+            onChange={(v) => set('className', v)}
+            readOnly={readOnly}
+            placeholder="Rogue"
+          />
+          <NumberField
+            label="Level"
+            value={data.level}
+            min={1}
+            max={20}
+            onChange={(v) => set('level', v)}
+            readOnly={readOnly}
+          />
+          <TextField
+            label="Race"
+            value={data.race}
+            onChange={(v) => set('race', v)}
+            readOnly={readOnly}
+            placeholder="Half-elf"
+          />
+          <TextField
+            label="Background"
+            value={data.background}
+            onChange={(v) => set('background', v)}
+            readOnly={readOnly}
+            placeholder="Urchin"
+          />
+          <TextField
+            label="Alignment"
+            value={data.alignment}
+            onChange={(v) => set('alignment', v)}
+            readOnly={readOnly}
+            placeholder="Chaotic good"
+          />
+          <NumberField
+            label="Experience"
+            value={data.experience}
+            min={0}
+            max={1_000_000}
+            onChange={(v) => set('experience', v)}
+            readOnly={readOnly}
+          />
         </div>
       </Section>
 
@@ -77,7 +125,10 @@ export function SheetEditor({ data, onChange }: Props) {
                   inputClassName="text-center text-lg"
                   onChange={(v) => set('abilities', { ...data.abilities, [ability]: v })}
                 />
-                <div className="mt-2 text-center text-sm text-amber-300 tabular-nums" aria-label={`${ABILITY_LABELS[ability]} modifier`}>
+                <div
+                  className="mt-2 text-center text-sm text-amber-300 tabular-nums"
+                  aria-label={`${ABILITY_LABELS[ability]} modifier`}
+                >
                   {formatModifier(abilityModifier(score))}
                 </div>
               </div>
@@ -91,9 +142,27 @@ export function SheetEditor({ data, onChange }: Props) {
           <HpBar hp={data.hp} />
           {!readOnly && (
             <div className="grid grid-cols-3 gap-2">
-              <NumberField label="Current" value={data.hp.current} min={-999} max={9999} onChange={(v) => set('hp', { ...data.hp, current: v })} />
-              <NumberField label="Max" value={data.hp.max} min={0} max={9999} onChange={(v) => set('hp', { ...data.hp, max: v })} />
-              <NumberField label="Temp" value={data.hp.temp} min={0} max={9999} onChange={(v) => set('hp', { ...data.hp, temp: v })} />
+              <NumberField
+                label="Current"
+                value={data.hp.current}
+                min={-999}
+                max={9999}
+                onChange={(v) => set('hp', { ...data.hp, current: v })}
+              />
+              <NumberField
+                label="Max"
+                value={data.hp.max}
+                min={0}
+                max={9999}
+                onChange={(v) => set('hp', { ...data.hp, max: v })}
+              />
+              <NumberField
+                label="Temp"
+                value={data.hp.temp}
+                min={0}
+                max={9999}
+                onChange={(v) => set('hp', { ...data.hp, temp: v })}
+              />
             </div>
           )}
           <div className="grid grid-cols-2 gap-2">
@@ -104,8 +173,20 @@ export function SheetEditor({ data, onChange }: Props) {
               </>
             ) : (
               <>
-                <NumberField label="Armor class" value={data.armorClass} min={0} max={50} onChange={(v) => set('armorClass', v)} />
-                <NumberField label="Speed (ft)" value={data.speed} min={0} max={500} onChange={(v) => set('speed', v)} />
+                <NumberField
+                  label="Armor class"
+                  value={data.armorClass}
+                  min={0}
+                  max={50}
+                  onChange={(v) => set('armorClass', v)}
+                />
+                <NumberField
+                  label="Speed (ft)"
+                  value={data.speed}
+                  min={0}
+                  max={500}
+                  onChange={(v) => set('speed', v)}
+                />
               </>
             )}
             <Stat label="Initiative" value={formatModifier(dexMod)} />
@@ -128,7 +209,9 @@ export function SheetEditor({ data, onChange }: Props) {
                 onClick={() =>
                   set(
                     'conditions',
-                    active ? data.conditions.filter((c) => c !== condition) : [...data.conditions, condition],
+                    active
+                      ? data.conditions.filter((c) => c !== condition)
+                      : [...data.conditions, condition],
                   )
                 }
                 className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
@@ -141,15 +224,27 @@ export function SheetEditor({ data, onChange }: Props) {
               </button>
             );
           })}
-          {readOnly && data.conditions.length === 0 && <p className="text-sm text-stone-500">None</p>}
+          {readOnly && data.conditions.length === 0 && (
+            <p className="text-sm text-stone-500">None</p>
+          )}
         </div>
       </Section>
 
       <Section title="Inventory">
-        <TextAreaField label="Gear & treasure" value={data.inventory} onChange={(v) => set('inventory', v)} readOnly={readOnly} />
+        <TextAreaField
+          label="Gear & treasure"
+          value={data.inventory}
+          onChange={(v) => set('inventory', v)}
+          readOnly={readOnly}
+        />
       </Section>
       <Section title="Notes" className="lg:col-span-2">
-        <TextAreaField label="Features, spells, backstory" value={data.notes} onChange={(v) => set('notes', v)} readOnly={readOnly} />
+        <TextAreaField
+          label="Features, spells, backstory"
+          value={data.notes}
+          onChange={(v) => set('notes', v)}
+          readOnly={readOnly}
+        />
       </Section>
     </div>
   );

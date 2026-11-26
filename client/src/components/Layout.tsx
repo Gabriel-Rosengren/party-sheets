@@ -43,7 +43,8 @@ export function RequireAuth() {
   const { state } = useAuth();
   const location = useLocation();
   if (state.status === 'loading') return <FullPageSpinner />;
-  if (state.status === 'anonymous') return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  if (state.status === 'anonymous')
+    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   return <Outlet />;
 }
 

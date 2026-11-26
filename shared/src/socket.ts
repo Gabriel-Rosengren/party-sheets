@@ -7,7 +7,9 @@ import type { Sheet } from './api';
  * only fans the resulting state out to the people allowed to see it.
  */
 
-export type Ack<T = undefined> = (res: { ok: true; data?: T } | { ok: false; error: string }) => void;
+export type Ack<T = undefined> = (
+  res: { ok: true; data?: T } | { ok: false; error: string },
+) => void;
 
 export interface ClientToServerEvents {
   'campaign:join': (payload: { campaignId: string }, ack: Ack) => void;

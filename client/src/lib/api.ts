@@ -44,7 +44,8 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 
 export const api = {
   me: () => request<{ user: PublicUser }>('GET', '/auth/me'),
-  register: (input: RegisterInput) => request<{ user: PublicUser }>('POST', '/auth/register', input),
+  register: (input: RegisterInput) =>
+    request<{ user: PublicUser }>('POST', '/auth/register', input),
   login: (input: LoginInput) => request<{ user: PublicUser }>('POST', '/auth/login', input),
   logout: () => request<void>('POST', '/auth/logout'),
 

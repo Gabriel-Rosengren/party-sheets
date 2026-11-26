@@ -20,7 +20,9 @@ export function SheetCard({ sheet, online, selected, onSelect }: Props) {
     if (sheet.version !== firstVersion.current) setFlashKey((k) => k + 1);
   }, [sheet.version]);
 
-  const subtitle = [data.race, data.className && `${data.className} ${data.level}`].filter(Boolean).join(' · ');
+  const subtitle = [data.race, data.className && `${data.className} ${data.level}`]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <button
@@ -42,7 +44,10 @@ export function SheetCard({ sheet, online, selected, onSelect }: Props) {
         <span
           className={`mt-1 inline-flex shrink-0 items-center gap-1.5 text-xs ${online ? 'text-emerald-400' : 'text-stone-500'}`}
         >
-          <span className={`size-2 rounded-full ${online ? 'bg-emerald-400' : 'bg-stone-600'}`} aria-hidden />
+          <span
+            className={`size-2 rounded-full ${online ? 'bg-emerald-400' : 'bg-stone-600'}`}
+            aria-hidden
+          />
           {sheet.ownerName}
         </span>
       </div>
@@ -51,10 +56,12 @@ export function SheetCard({ sheet, online, selected, onSelect }: Props) {
 
       <div className="mt-3 flex items-center gap-4 text-sm text-stone-300">
         <span>
-          <span className="text-stone-500">AC</span> <span className="font-semibold tabular-nums">{data.armorClass}</span>
+          <span className="text-stone-500">AC</span>{' '}
+          <span className="font-semibold tabular-nums">{data.armorClass}</span>
         </span>
         <span>
-          <span className="text-stone-500">Speed</span> <span className="tabular-nums">{data.speed} ft</span>
+          <span className="text-stone-500">Speed</span>{' '}
+          <span className="tabular-nums">{data.speed} ft</span>
         </span>
       </div>
 

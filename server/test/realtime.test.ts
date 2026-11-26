@@ -90,7 +90,9 @@ describe('realtime sheet sharing', () => {
     const received = nextEvent(dmSocket, 'sheet:updated');
     await p1.agent
       .put(`/api/sheets/${sheetId}`)
-      .send({ data: { ...emptySheetData(), characterName: 'Vex', hp: { current: 4, max: 12, temp: 0 } } })
+      .send({
+        data: { ...emptySheetData(), characterName: 'Vex', hp: { current: 4, max: 12, temp: 0 } },
+      })
       .expect(200);
 
     const update = await received;

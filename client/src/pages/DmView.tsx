@@ -30,7 +30,8 @@ function InviteCode({ code }: { code: string }) {
         {copied ? 'Copied!' : 'Copy'}
       </button>
       <p className="text-sm text-stone-400 sm:ml-auto sm:max-w-xs">
-        Players sign up, choose “Join a party” and enter this code. Their sheet appears here instantly.
+        Players sign up, choose “Join a party” and enter this code. Their sheet appears here
+        instantly.
       </p>
     </div>
   );
@@ -75,7 +76,11 @@ export function DmView({ campaign, sheets, online }: Props) {
               {selected.data.characterName || 'Unnamed hero'}
               <span className="ml-2 text-base text-stone-500">played by {selected.ownerName}</span>
             </h2>
-            <button type="button" className="text-sm text-stone-400 hover:text-stone-200" onClick={() => setSelectedId(null)}>
+            <button
+              type="button"
+              className="text-sm text-stone-400 hover:text-stone-200"
+              onClick={() => setSelectedId(null)}
+            >
               Close
             </button>
           </div>
