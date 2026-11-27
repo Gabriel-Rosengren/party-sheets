@@ -8,6 +8,71 @@ and use conventional-commit prefixes (`feat`, `fix`, `chore`, `ci`, `docs`).
 
 ---
 
+## 2026-11-27: Session 4, code review: readability, redundancy and one crash
+
+**Branch:** `refactor/code-review` (off `main` after PR #4 was merged)
+**Pairing:** Gabriel + Claude Code (Claude Opus 5.5)
+
+### Goal
+
+Read through the whole codebase (shared, server, client, tests, e2e, config), and improve
+anything that is redundant or hard to read: names, comments, duplicated logic. Behaviour
+should stay the same, except for real bugs found along the way.
+
+### Bug found: one socket message could crash the server
+
+`campaign:join` and `campaign:leave` destructured their payload in the parameter list, before
+any check. Reproduced against a throwaway API: a signed-in client sending `campaign:leave` with
+a `null` payload threw inside an async handler, and the unhandled rejection exited the process
+(`server exited with code 1`). Any signed-in user could take the server down for everyone.
+
+Fixed by typing event arguments as `unknown` and checking them (`campaignIdOf`), tolerating a
+missing ack callback, letting leave act only on rooms the socket is in, and making presence
+broadcasts unable to throw. A regression test sends the malformed events and checks that the
+server still answers. Written first, it failed with the same unhandled rejection.
+
+### What was changed (in commit order)
+
+1. `fix(server)`: the socket crash above, with its regression test.
+2. `refactor`: `SHEET_LIMITS` and the auth and campaign limits live in shared, and both the zod
+   schemas and the client's inputs use them. Before, the editor, dashboard and sign-up form
+   each repeated numbers from the schemas. Also one email schema, `Ack` without an unused
+   generic, and `sameJson`.
+3. `refactor(server)`: removed the unused `badRequest`/`forbidden` helpers, reused
+   `findMembership` in join, gave `claims`, `passwordMatches` and `usersById` clearer names,
+   and fixed stale comments.
+4. `refactor(client)`: removed the read-only sheet mode, which nothing has used since DMs
+   could edit (about 40 lines of unreachable branches). Added `parseIntInRange` in NumberField,
+   and clearer names: `resolveTabAccount`/`actAs` (two things were both called `signedIn`),
+   `upsertNewer` (it was called `mergeSheet` but isn't the three-way merge), `baseRef`,
+   `CONNECTION_BADGE`. Also one session-lost path in the socket hook and one menu item class.
+5. `test(server)`: `listenForSockets` and `joinCampaign` helpers replace boilerplate copied
+   across three files. Rewrote comments that contradicted their assertions.
+
+### Problems hit
+
+- The first crash repro used a Git Bash path (`/c/Users/...`) in `DATABASE_URL`, which
+  Prisma can't open. Re-ran with a relative path, then deleted the throwaway database.
+- A scripted multi-edit expected one `close();` in `Layout.tsx` and found three. It stopped
+  before writing anything and was re-run with a replace-all.
+- An inline function I used for `clearSessionCookieOptions` read worse than the plain
+  destructure it replaced, so I reverted it.
+
+### Verification
+
+- Typecheck, Prettier and build are clean. 4 shared + 24 server tests pass (one new), and all
+  7 Playwright E2E tests pass in Chrome.
+
+### Noted, not changed
+
+- Registering with an email already in use, or two simultaneous joins by one player, can race
+  past the "already exists" check and hit the unique constraint, which returns 500 instead of
+  409/200. Rare, harmless to data, worth a small follow-up.
+- Logging in with an email longer than 254 characters now gets a validation error (400)
+  instead of 401, because login and register share one email schema.
+
+---
+
 ## 2026-11-27: Session 3, one account per tab (issue #3) and an end-to-end suite
 
 **Branch:** `fix/per-tab-sessions` (off `main` after PR #2 was merged)
