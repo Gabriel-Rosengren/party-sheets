@@ -1,11 +1,17 @@
-import type { AddressInfo } from 'node:net';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { io as ioClient, type Socket } from 'socket.io-client';
-import { emptySheetData, ACCOUNT_HEADER } from '@party-sheets/shared';
-import { createServer } from '../src/server';
-import { signSession, sessionCookieName } from '../src/auth/session';
-import { PASSWORD, TestBrowser, createCampaign, registerUser, uniqueEmail } from './helpers';
 import request from 'supertest';
+import { describe, expect, it } from 'vitest';
+import { ACCOUNT_HEADER, emptySheetData } from '@party-sheets/shared';
+import { createServer } from '../src/server';
+import { sessionCookieName, signSession } from '../src/auth/session';
+import {
+  PASSWORD,
+  TestBrowser,
+  createCampaign,
+  listenForSockets,
+  registerUser,
+  uniqueEmail,
+  type ClientSocket,
+} from './helpers';
 
 /**
  * Regression suite for issue #3: several accounts signed in on one browser (one per tab)
@@ -13,32 +19,9 @@ import request from 'supertest';
  * which is exactly the situation that used to make every tab switch account.
  */
 
-const { app, httpServer, io } = createServer();
-let url = '';
-const sockets: Socket[] = [];
-
-beforeAll(async () => {
-  await new Promise<void>((resolve) => httpServer.listen(0, resolve));
-  url = `http://localhost:${(httpServer.address() as AddressInfo).port}`;
-});
-
-afterAll(async () => {
-  sockets.forEach((s) => s.disconnect());
-  await io.close();
-});
-
-const connect = (cookie: string, accountId: string) =>
-  new Promise<Socket>((resolve, reject) => {
-    const socket = ioClient(url, {
-      transports: ['websocket'],
-      extraHeaders: { cookie },
-      auth: { accountId },
-      reconnection: false,
-    });
-    sockets.push(socket);
-    socket.on('connect', () => resolve(socket));
-    socket.on('connect_error', reject);
-  });
+const server = createServer();
+const { app } = server;
+const connect = listenForSockets(server);
 
 const whoAmI = async (browser: TestBrowser, accountId?: string) => {
   const res = await browser.tab(accountId).get('/api/auth/me');
@@ -78,8 +61,7 @@ describe('several accounts in one browser', () => {
     expect((await dm.get(`/api/campaigns/${campaignId}`)).body.campaign.role).toBe('DM');
     expect((await player.get(`/api/campaigns/${campaignId}`)).body.campaign.role).toBe('PLAYER');
 
-    // A save from the DM tab is the DM's save (the DM may edit), from the player tab the
-    // player's. Neither runs as the other account.
+    // A save from the DM tab runs as the DM, who may edit any sheet in their campaign.
     const sheetId: string = own.body.sheets[0].id;
     const data = { ...emptySheetData(), notes: 'from the DM tab' };
     expect((await dm.put(`/api/sheets/${sheetId}`, { data, baseVersion: 1 })).status).toBe(200);
@@ -175,13 +157,14 @@ describe('sockets follow their account and session', () => {
     const dmSocket = await connect(browser.cookieHeader, dmId);
     const playerSocket = await connect(browser.cookieHeader, playerId);
 
-    // Only the DM socket may join the DM's view of the campaign, so check both acks.
-    const join = (s: Socket) =>
+    // Both accounts are members, so each socket may join the campaign.
+    const join = (s: ClientSocket) =>
       new Promise<{ ok: boolean }>((r) => s.emit('campaign:join', { campaignId: campaign.id }, r));
     expect(await join(dmSocket)).toEqual({ ok: true });
     expect(await join(playerSocket)).toEqual({ ok: true });
 
-    // A player's save reaches the DM socket but not as a DM event on the player socket.
+    // The player's save reaches the DM (who sees every sheet) and the player's own socket
+    // (their other tabs), each exactly once.
     const sheets = await browser.tab(playerId).get(`/api/campaigns/${campaign.id}/sheets`);
     const received: string[] = [];
     dmSocket.on('sheet:updated', () => received.push('dm'));
