@@ -11,7 +11,7 @@ import { Prisma } from '../generated/prisma/client';
 import { notFound } from '../lib/http-error';
 import { generateInviteCode } from '../lib/invite-code';
 import { authedUserId, requireAuth } from '../auth/require-auth';
-import { requireMembership } from '../access';
+import { findMembership, requireMembership } from '../access';
 import { sheetInclude, toSheet } from '../serializers';
 import type { RealtimeNotifier } from '../realtime/notifier';
 
@@ -79,15 +79,13 @@ export const campaignsRouter = (realtime: RealtimeNotifier) => {
     const campaign = await prisma.campaign.findUnique({ where: { inviteCode } });
     if (!campaign) throw notFound('No campaign found for that invite code');
 
-    const existing = await prisma.membership.findUnique({
-      where: { userId_campaignId: { userId, campaignId: campaign.id } },
-    });
-    if (existing) {
+    if (await findMembership(userId, campaign.id)) {
       // Re-joining is idempotent: just send them back to the campaign.
       res.json({ campaign: { id: campaign.id }, alreadyMember: true });
       return;
     }
 
+    // Membership and sheet are created together: a player always has exactly one sheet.
     const sheet = await prisma.$transaction(async (tx) => {
       await tx.membership.create({ data: { userId, campaignId: campaign.id, role: 'PLAYER' } });
       return tx.sheet.create({

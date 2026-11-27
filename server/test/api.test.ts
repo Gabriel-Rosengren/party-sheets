@@ -2,7 +2,7 @@ import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { emptySheetData } from '@party-sheets/shared';
 import { createServer } from '../src/server';
-import { createCampaign, registerUser } from './helpers';
+import { PASSWORD, createCampaign, joinCampaign, registerUser } from './helpers';
 
 const { app } = createServer();
 
@@ -19,7 +19,7 @@ describe('auth', () => {
 
     await agent
       .post('/api/auth/login')
-      .send({ email: email.toUpperCase(), password: 'correct horse battery' })
+      .send({ email: email.toUpperCase(), password: PASSWORD })
       .expect(200);
     await agent.get('/api/auth/me').expect(200);
   });
@@ -90,7 +90,7 @@ describe('campaigns and sheets', () => {
     await p2.agent.get(`/api/sheets/${p1SheetId}`).expect(404);
     await dm.agent.get(`/api/sheets/${p1SheetId}`).expect(200);
 
-    // Only the owner can write; versions increment.
+    // Other players can't write; the owner can, and each save bumps the version.
     const data = { ...emptySheetData(), characterName: 'Thia', level: 3 };
     await p2.agent.put(`/api/sheets/${p1SheetId}`).send({ data, baseVersion: 1 }).expect(404);
     const saved = await p1.agent
@@ -114,10 +114,7 @@ describe('campaigns and sheets', () => {
     const otherDm = await registerUser(app, 'Rival');
     const campaign = await createCampaign(dm.agent);
     await createCampaign(otherDm.agent);
-    await player.agent.post('/api/campaigns/join').send({ inviteCode: campaign.inviteCode });
-
-    const { body } = await player.agent.get(`/api/campaigns/${campaign.id}/sheets`);
-    const sheetId: string = body.sheets[0].id;
+    const sheetId = await joinCampaign(player.agent, campaign.inviteCode);
     const data = { ...emptySheetData(), hp: { current: 3, max: 12, temp: 0 } };
 
     // A DM of a different campaign gets a 404, the same as any outsider.
@@ -139,9 +136,7 @@ describe('campaigns and sheets', () => {
     const dm = await registerUser(app, 'Arbiter');
     const player = await registerUser(app, 'Wizard');
     const campaign = await createCampaign(dm.agent);
-    await player.agent.post('/api/campaigns/join').send({ inviteCode: campaign.inviteCode });
-    const { body } = await player.agent.get(`/api/campaigns/${campaign.id}/sheets`);
-    const sheetId: string = body.sheets[0].id;
+    const sheetId = await joinCampaign(player.agent, campaign.inviteCode);
 
     // Both start from version 1. The DM saves first.
     await dm.agent

@@ -1,30 +1,37 @@
 import { z } from 'zod';
 import { sheetDataSchema, type SheetData } from './sheet';
 
+// ---------- Limits (shared so the client's forms match what the server accepts) ----------
+
+export const PASSWORD_MIN_LENGTH = 8;
+export const CAMPAIGN_NAME_LENGTH = { min: 2, max: 60 } as const;
+export const INVITE_CODE_LENGTH = 6;
+
 // ---------- Request bodies (validated on the server, reused for client forms) ----------
 
+/** Emails are compared case-insensitively, so they're stored lower-cased. */
+const email = z
+  .email()
+  .max(254)
+  .transform((e) => e.toLowerCase());
+
 export const registerSchema = z.object({
-  email: z
-    .email()
-    .max(254)
-    .transform((e) => e.toLowerCase()),
+  email,
   displayName: z.string().trim().min(2).max(40),
-  password: z.string().min(8).max(128),
+  password: z.string().min(PASSWORD_MIN_LENGTH).max(128),
 });
 export type RegisterInput = z.input<typeof registerSchema>;
 
 export const loginSchema = z.object({
-  email: z.email().transform((e) => e.toLowerCase()),
+  email,
   password: z.string().min(1).max(128),
 });
 export type LoginInput = z.input<typeof loginSchema>;
 
 export const createCampaignSchema = z.object({
-  name: z.string().trim().min(2).max(60),
+  name: z.string().trim().min(CAMPAIGN_NAME_LENGTH.min).max(CAMPAIGN_NAME_LENGTH.max),
 });
 export type CreateCampaignInput = z.input<typeof createCampaignSchema>;
-
-export const INVITE_CODE_LENGTH = 6;
 
 export const joinCampaignSchema = z.object({
   inviteCode: z
@@ -90,7 +97,10 @@ export interface Sheet {
   campaignId: string;
   ownerId: string;
   ownerName: string;
-  /** Increments on every save; clients use it to drop out-of-order updates. */
+  /**
+   * Increments on every save. Saves must name the version they're based on (see
+   * `updateSheetSchema`), and clients use it to ignore updates older than what they have.
+   */
   version: number;
   data: SheetData;
   updatedAt: string;

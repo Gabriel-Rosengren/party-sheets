@@ -47,7 +47,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    * Works out who this tab is. With `pickOnlyAccount`, a tab that hasn't chosen yet (a new
    * tab) adopts the browser's account if there is exactly one; with several it asks.
    */
-  const resolve = useCallback(
+  const resolveTabAccount = useCallback(
     async (pickOnlyAccount: boolean) => {
       if (tabAccount.get()) {
         try {
@@ -60,15 +60,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           else tabAccount.clear();
         }
       }
-      let signedIn: PublicUser[] = [];
+      // This tab has no (valid) account yet: look at what the browser is signed in to.
+      let browserAccounts: PublicUser[] = [];
       try {
-        signedIn = (await api.accounts()).accounts;
+        browserAccounts = (await api.accounts()).accounts;
       } catch (err) {
         console.error(err);
       }
-      setAccounts(signedIn);
-      const [only] = signedIn;
-      if (pickOnlyAccount && only && signedIn.length === 1) {
+      setAccounts(browserAccounts);
+      const [only] = browserAccounts;
+      if (pickOnlyAccount && only && browserAccounts.length === 1) {
         tabAccount.set(only.id);
         setState({ status: 'authenticated', user: only });
         return;
@@ -79,14 +80,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   useEffect(() => {
-    void resolve(true);
+    void resolveTabAccount(true);
     // This tab's session ended elsewhere (signed out in another tab, expired): re-check
     // rather than keep showing an account the server no longer accepts.
-    setSessionLostHandler(() => void resolve(false));
+    setSessionLostHandler(() => void resolveTabAccount(false));
     return () => setSessionLostHandler(null);
-  }, [resolve]);
+  }, [resolveTabAccount]);
 
-  const signedIn = useCallback(
+  /** After a sign-in or sign-up in this tab: this tab now acts as `user`. */
+  const actAs = useCallback(
     (user: PublicUser) => {
       tabAccount.set(user.id);
       setState({ status: 'authenticated', user });
@@ -96,27 +98,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const login = useCallback(
-    async (input: LoginInput) => signedIn((await api.login(input)).user),
-    [signedIn],
+    async (input: LoginInput) => actAs((await api.login(input)).user),
+    [actAs],
   );
 
   const register = useCallback(
-    async (input: RegisterInput) => signedIn((await api.register(input)).user),
-    [signedIn],
+    async (input: RegisterInput) => actAs((await api.register(input)).user),
+    [actAs],
   );
 
   const logout = useCallback(async () => {
     await api.logout();
     tabAccount.clear();
-    await resolve(false);
-  }, [resolve]);
+    await resolveTabAccount(false);
+  }, [resolveTabAccount]);
 
   const switchAccount = useCallback(
     async (user: PublicUser) => {
       tabAccount.set(user.id);
-      await resolve(false);
+      await resolveTabAccount(false);
     },
-    [resolve],
+    [resolveTabAccount],
   );
 
   const addAccount = useCallback(() => {

@@ -1,7 +1,16 @@
 import { randomUUID } from 'node:crypto';
-import request from 'supertest';
+import type { Server as HttpServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import type { Express } from 'express';
-import { ACCOUNT_HEADER } from '@party-sheets/shared';
+import { io as ioClient, type Socket } from 'socket.io-client';
+import request from 'supertest';
+import { afterAll, beforeAll } from 'vitest';
+import {
+  ACCOUNT_HEADER,
+  type ClientToServerEvents,
+  type ServerToClientEvents,
+} from '@party-sheets/shared';
+import type { IoServer } from '../src/realtime/socket';
 
 export const PASSWORD = 'correct horse battery';
 export const uniqueEmail = (name: string) =>
@@ -29,6 +38,47 @@ export const createCampaign = async (dm: request.Agent, name = 'Lost Mine') => {
   const id: string = created.body.campaign.id;
   const detail = await dm.get(`/api/campaigns/${id}`).expect(200);
   return { id, inviteCode: detail.body.campaign.inviteCode as string };
+};
+
+/** Joins a campaign as a player; returns the id of the sheet that joining creates. */
+export const joinCampaign = async (player: request.Agent, inviteCode: string) => {
+  const joined = await player.post('/api/campaigns/join').send({ inviteCode }).expect(201);
+  const { body } = await player.get(`/api/campaigns/${joined.body.campaign.id}/sheets`).expect(200);
+  return body.sheets[0].id as string;
+};
+
+export type ClientSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
+
+/**
+ * Starts the server on a free port for the calling test file and returns `connect`, which
+ * opens a socket the way a tab does: with the browser's cookies and the account it acts
+ * as. Every socket is closed, and the server stopped, when the file's tests finish.
+ */
+export const listenForSockets = ({ httpServer, io }: { httpServer: HttpServer; io: IoServer }) => {
+  let url = '';
+  const sockets: ClientSocket[] = [];
+
+  beforeAll(async () => {
+    await new Promise<void>((resolve) => httpServer.listen(0, resolve));
+    url = `http://localhost:${(httpServer.address() as AddressInfo).port}`;
+  });
+  afterAll(async () => {
+    sockets.forEach((s) => s.disconnect());
+    await io.close();
+  });
+
+  return (cookie?: string, accountId?: string) =>
+    new Promise<ClientSocket>((resolve, reject) => {
+      const socket: ClientSocket = ioClient(url, {
+        transports: ['websocket'],
+        extraHeaders: cookie ? { cookie } : {},
+        auth: accountId ? { accountId } : {},
+        reconnection: false,
+      });
+      sockets.push(socket);
+      socket.on('connect', () => resolve(socket));
+      socket.on('connect_error', reject);
+    });
 };
 
 type Body = Record<string, unknown>;

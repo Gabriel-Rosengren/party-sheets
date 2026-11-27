@@ -1,7 +1,8 @@
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v);
 
-const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+/** Deep equality for JSON values (sheet data is plain JSON, so this is enough). */
+const sameJson = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
 /**
  * Three-way merge used when two people edit the same sheet (the player and their DM).
@@ -23,5 +24,5 @@ export function mergeThreeWay<T>(base: T, local: T, remote: T): T {
     }
     return merged as T;
   }
-  return same(local, base) ? remote : local;
+  return sameJson(local, base) ? remote : local;
 }

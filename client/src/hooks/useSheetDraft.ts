@@ -23,18 +23,19 @@ const isConflict = (err: unknown): err is ApiRequestError & { body: SheetConflic
 export function useSheetDraft(sheet: Sheet) {
   const [draft, setDraftState] = useState<SheetData>(sheet.data);
   const draftRef = useRef(sheet.data);
-  /** The server copy the draft is based on. */
-  const base = useRef({ version: sheet.version, data: sheet.data });
+  /** The server copy the draft is based on: what the next save names as its baseVersion. */
+  const baseRef = useRef({ version: sheet.version, data: sheet.data });
 
   const setDraft = (next: SheetData) => {
     draftRef.current = next;
     setDraftState(next);
   };
 
+  /** Moves the draft onto a newer server copy, keeping this person's unsaved edits. */
   const rebase = useCallback((server: Sheet) => {
-    if (server.version <= base.current.version) return;
-    const merged = mergeThreeWay(base.current.data, draftRef.current, server.data);
-    base.current = { version: server.version, data: server.data };
+    if (server.version <= baseRef.current.version) return;
+    const merged = mergeThreeWay(baseRef.current.data, draftRef.current, server.data);
+    baseRef.current = { version: server.version, data: server.data };
     setDraft(merged);
   }, []);
 
@@ -42,10 +43,10 @@ export function useSheetDraft(sheet: Sheet) {
     for (let attempt = 0; attempt < MAX_CONFLICT_RETRIES; attempt++) {
       const data = draftRef.current;
       try {
-        const { sheet: saved } = await api.updateSheet(sheet.id, data, base.current.version);
+        const { sheet: saved } = await api.updateSheet(sheet.id, data, baseRef.current.version);
         // A realtime update may already have moved us past this version.
-        if (saved.version > base.current.version) {
-          base.current = { version: saved.version, data: saved.data };
+        if (saved.version > baseRef.current.version) {
+          baseRef.current = { version: saved.version, data: saved.data };
         }
         return;
       } catch (err) {

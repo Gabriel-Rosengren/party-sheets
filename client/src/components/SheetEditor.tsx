@@ -2,6 +2,7 @@ import {
   ABILITIES,
   ABILITY_LABELS,
   CONDITIONS,
+  SHEET_LIMITS,
   abilityModifier,
   formatModifier,
   proficiencyBonus,
@@ -12,8 +13,7 @@ import { HpBar } from './HpBar';
 
 interface Props {
   data: SheetData;
-  /** Omit for a read-only sheet. */
-  onChange?: (next: SheetData) => void;
+  onChange: (next: SheetData) => void;
 }
 
 function Section({
@@ -35,6 +35,7 @@ function Section({
   );
 }
 
+/** A value worked out from other fields (e.g. initiative from Dexterity), not editable. */
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="rounded-lg border border-stone-800 bg-stone-950/50 p-3 text-center">
@@ -45,9 +46,9 @@ function Stat({ label, value }: { label: string; value: string | number }) {
 }
 
 export function SheetEditor({ data, onChange }: Props) {
-  const readOnly = !onChange;
+  /** Replaces one top-level field and reports the whole new sheet. */
   const set = <K extends keyof SheetData>(key: K, value: SheetData[K]) =>
-    onChange?.({ ...data, [key]: value });
+    onChange({ ...data, [key]: value });
 
   const dexMod = abilityModifier(data.abilities.dex);
 
@@ -60,52 +61,43 @@ export function SheetEditor({ data, onChange }: Props) {
             className="sm:col-span-2"
             value={data.characterName}
             onChange={(v) => set('characterName', v)}
-            readOnly={readOnly}
             placeholder="Thia Brightwater"
           />
           <TextField
             label="Class"
             value={data.className}
             onChange={(v) => set('className', v)}
-            readOnly={readOnly}
             placeholder="Rogue"
           />
           <NumberField
             label="Level"
             value={data.level}
-            min={1}
-            max={20}
+            {...SHEET_LIMITS.level}
             onChange={(v) => set('level', v)}
-            readOnly={readOnly}
           />
           <TextField
             label="Race"
             value={data.race}
             onChange={(v) => set('race', v)}
-            readOnly={readOnly}
             placeholder="Half-elf"
           />
           <TextField
             label="Background"
             value={data.background}
             onChange={(v) => set('background', v)}
-            readOnly={readOnly}
             placeholder="Urchin"
           />
           <TextField
             label="Alignment"
             value={data.alignment}
             onChange={(v) => set('alignment', v)}
-            readOnly={readOnly}
             placeholder="Chaotic good"
           />
           <NumberField
             label="Experience"
             value={data.experience}
-            min={0}
-            max={1_000_000}
+            {...SHEET_LIMITS.experience}
             onChange={(v) => set('experience', v)}
-            readOnly={readOnly}
           />
         </div>
       </Section>
@@ -119,9 +111,7 @@ export function SheetEditor({ data, onChange }: Props) {
                 <NumberField
                   label={ABILITY_LABELS[ability]}
                   value={score}
-                  min={1}
-                  max={30}
-                  readOnly={readOnly}
+                  {...SHEET_LIMITS.abilityScore}
                   inputClassName="text-center text-lg"
                   onChange={(v) => set('abilities', { ...data.abilities, [ability]: v })}
                 />
@@ -140,55 +130,39 @@ export function SheetEditor({ data, onChange }: Props) {
       <Section title="Combat">
         <div className="space-y-4">
           <HpBar hp={data.hp} />
-          {!readOnly && (
-            <div className="grid grid-cols-3 gap-2">
-              <NumberField
-                label="Current"
-                value={data.hp.current}
-                min={-999}
-                max={9999}
-                onChange={(v) => set('hp', { ...data.hp, current: v })}
-              />
-              <NumberField
-                label="Max"
-                value={data.hp.max}
-                min={0}
-                max={9999}
-                onChange={(v) => set('hp', { ...data.hp, max: v })}
-              />
-              <NumberField
-                label="Temp"
-                value={data.hp.temp}
-                min={0}
-                max={9999}
-                onChange={(v) => set('hp', { ...data.hp, temp: v })}
-              />
-            </div>
-          )}
+          <div className="grid grid-cols-3 gap-2">
+            <NumberField
+              label="Current"
+              value={data.hp.current}
+              {...SHEET_LIMITS.currentHp}
+              onChange={(v) => set('hp', { ...data.hp, current: v })}
+            />
+            <NumberField
+              label="Max"
+              value={data.hp.max}
+              {...SHEET_LIMITS.maxHp}
+              onChange={(v) => set('hp', { ...data.hp, max: v })}
+            />
+            <NumberField
+              label="Temp"
+              value={data.hp.temp}
+              {...SHEET_LIMITS.tempHp}
+              onChange={(v) => set('hp', { ...data.hp, temp: v })}
+            />
+          </div>
           <div className="grid grid-cols-2 gap-2">
-            {readOnly ? (
-              <>
-                <Stat label="Armor class" value={data.armorClass} />
-                <Stat label="Speed" value={`${data.speed} ft`} />
-              </>
-            ) : (
-              <>
-                <NumberField
-                  label="Armor class"
-                  value={data.armorClass}
-                  min={0}
-                  max={50}
-                  onChange={(v) => set('armorClass', v)}
-                />
-                <NumberField
-                  label="Speed (ft)"
-                  value={data.speed}
-                  min={0}
-                  max={500}
-                  onChange={(v) => set('speed', v)}
-                />
-              </>
-            )}
+            <NumberField
+              label="Armor class"
+              value={data.armorClass}
+              {...SHEET_LIMITS.armorClass}
+              onChange={(v) => set('armorClass', v)}
+            />
+            <NumberField
+              label="Speed (ft)"
+              value={data.speed}
+              {...SHEET_LIMITS.speed}
+              onChange={(v) => set('speed', v)}
+            />
             <Stat label="Initiative" value={formatModifier(dexMod)} />
             <Stat label="Proficiency" value={formatModifier(proficiencyBonus(data.level))} />
           </div>
@@ -199,12 +173,10 @@ export function SheetEditor({ data, onChange }: Props) {
         <div className="flex flex-wrap gap-2">
           {CONDITIONS.map((condition) => {
             const active = data.conditions.includes(condition);
-            if (readOnly && !active) return null;
             return (
               <button
                 key={condition}
                 type="button"
-                disabled={readOnly}
                 aria-pressed={active}
                 onClick={() =>
                   set(
@@ -218,15 +190,12 @@ export function SheetEditor({ data, onChange }: Props) {
                   active
                     ? 'border-red-500/60 bg-red-500/15 text-red-300'
                     : 'border-stone-700 text-stone-400 hover:border-stone-500 hover:text-stone-200'
-                } disabled:cursor-default`}
+                }`}
               >
                 {condition}
               </button>
             );
           })}
-          {readOnly && data.conditions.length === 0 && (
-            <p className="text-sm text-stone-500">None</p>
-          )}
         </div>
       </Section>
 
@@ -235,7 +204,6 @@ export function SheetEditor({ data, onChange }: Props) {
           label="Gear & treasure"
           value={data.inventory}
           onChange={(v) => set('inventory', v)}
-          readOnly={readOnly}
         />
       </Section>
       <Section title="Notes" className="lg:col-span-2">
@@ -243,7 +211,6 @@ export function SheetEditor({ data, onChange }: Props) {
           label="Features, spells, backstory"
           value={data.notes}
           onChange={(v) => set('notes', v)}
-          readOnly={readOnly}
         />
       </Section>
     </div>

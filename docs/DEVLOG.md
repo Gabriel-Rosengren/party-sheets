@@ -8,6 +8,108 @@ and use conventional-commit prefixes (`feat`, `fix`, `chore`, `ci`, `docs`).
 
 ---
 
+## 2026-11-27: Session 4, code review: readability, redundancy and one crash
+
+**Branch:** `refactor/code-review` (off `main` after PR #4 was merged)
+**Pairing:** Gabriel + Claude Code (Claude Opus 5.5)
+
+### Goal
+
+Read through the whole codebase (shared, server, client, tests, e2e, config), and improve
+anything that is redundant or hard to read: names, comments, duplicated logic. Behaviour
+should stay the same, except for real bugs found along the way.
+
+### Bug found: one socket message could crash the server
+
+`campaign:join` and `campaign:leave` destructured their payload in the parameter list, before
+any check. Reproduced against a throwaway API: a signed-in client sending `campaign:leave` with
+a `null` payload threw inside an async handler, and the unhandled rejection exited the process
+(`server exited with code 1`). Any signed-in user could take the server down for everyone.
+
+Fixed by typing event arguments as `unknown` and checking them (`campaignIdOf`), tolerating a
+missing ack callback, letting leave act only on rooms the socket is in, and making presence
+broadcasts unable to throw. A regression test sends the malformed events and checks that the
+server still answers. Written first, it failed with the same unhandled rejection.
+
+### What was changed (in commit order)
+
+1. `fix(server)`: the socket crash above, with its regression test.
+2. `refactor`: `SHEET_LIMITS` and the auth and campaign limits live in shared, and both the zod
+   schemas and the client's inputs use them. Before, the editor, dashboard and sign-up form
+   each repeated numbers from the schemas. Also one email schema, `Ack` without an unused
+   generic, and `sameJson`.
+3. `refactor(server)`: removed the unused `badRequest`/`forbidden` helpers, reused
+   `findMembership` in join, gave `claims`, `passwordMatches` and `usersById` clearer names,
+   and fixed stale comments.
+4. `refactor(client)`: removed the read-only sheet mode, which nothing has used since DMs
+   could edit (about 40 lines of unreachable branches). Added `parseIntInRange` in NumberField,
+   and clearer names: `resolveTabAccount`/`actAs` (two things were both called `signedIn`),
+   `upsertNewer` (it was called `mergeSheet` but isn't the three-way merge), `baseRef`,
+   `CONNECTION_BADGE`. Also one session-lost path in the socket hook and one menu item class.
+5. `test(server)`: `listenForSockets` and `joinCampaign` helpers replace boilerplate copied
+   across three files. Rewrote comments that contradicted their assertions.
+
+### Problems hit
+
+- The first crash repro used a Git Bash path (`/c/Users/...`) in `DATABASE_URL`, which
+  Prisma can't open. Re-ran with a relative path, then deleted the throwaway database.
+- A scripted multi-edit expected one `close();` in `Layout.tsx` and found three. It stopped
+  before writing anything and was re-run with a replace-all.
+- An inline function I used for `clearSessionCookieOptions` read worse than the plain
+  destructure it replaced, so I reverted it.
+
+### Verification
+
+- Typecheck, Prettier and build are clean. 4 shared + 24 server tests pass (one new), and all
+  7 Playwright E2E tests pass in Chrome.
+
+### CI failure: sign-out didn't revoke sessions
+
+After the PR was opened, CI's e2e job failed on "signing out ends that account in its other
+tabs too". The CI trace showed the cause: tab 2's sign-out closed tab 1's socket, and tab 1
+asked `/auth/me` 6 ms later, while the browser still held the cookie. The token was still
+valid, because sign-out only cleared the cookie, so tab 1 got 200 and stayed signed in.
+Locally the test failed 2 runs in 30, so the single local run before opening the PR had
+missed it. It was already on `main` from PR #4, but a PR to main must not carry a known bug,
+so it was fixed here.
+
+- New `Session` table (id = the JWT's `jti`). A token is accepted only while its row exists,
+  and sign-out deletes the row *before* closing sockets. A copied cookie also stops working at
+  sign-out, where before it stayed valid for up to 7 days.
+- Signing in again to an account the browser already has a session for keeps that session.
+- New test: a token copied before sign-out is refused by the API, the account list and the
+  socket handshake. Mutation check: skipping the row lookup fails it.
+- Verified: 4 shared + 25 server tests pass, and the full e2e suite passes 10 times over
+  (70/70) plus the sign-out test 40/40. Checked in the running app with two tabs: signing out
+  in tab 2 sends tab 1 to sign-in.
+- Existing sign-ins (tokens without a row) are no longer accepted, so everyone signs in once
+  more. `dev.db` got the new migration via `prisma migrate dev`.
+
+### GitHub: `main` ruleset
+
+`main` had no protection. With Gabriel's go-ahead, added the ruleset "Protect main", active on
+the default branch with no bypass, not even for admins:
+
+- Changes go through a pull request: squash merge only, and review threads must be resolved.
+  Approvals are set to 0 because GitHub doesn't let you approve your own PR, so requiring
+  one would block every merge on a solo repo.
+- The `verify` and `e2e` checks must pass, on a branch that is up to date with `main`.
+- No force pushes, no deletion, linear history.
+
+New standing rules from Gabriel: run tests locally (with the e2e suite repeated to catch
+races) and check behaviour in the app before opening a PR, never hand over a PR with a known
+bug, and give every PR a ready review comment and merge description.
+
+### Noted, not changed
+
+- Registering with an email already in use, or two simultaneous joins by one player, can race
+  past the "already exists" check and hit the unique constraint, which returns 500 instead of
+  409/200. Rare, harmless to data, worth a small follow-up.
+- Logging in with an email longer than 254 characters now gets a validation error (400)
+  instead of 401, because login and register share one email schema.
+
+---
+
 ## 2026-11-27: Session 3, one account per tab (issue #3) and an end-to-end suite
 
 **Branch:** `fix/per-tab-sessions` (off `main` after PR #2 was merged)

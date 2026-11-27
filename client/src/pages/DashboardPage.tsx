@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
-import type { CampaignSummary } from '@party-sheets/shared';
+import {
+  CAMPAIGN_NAME_LENGTH,
+  INVITE_CODE_LENGTH,
+  type CampaignSummary,
+} from '@party-sheets/shared';
 import { useCurrentUser } from '../auth/AuthContext';
 import { api, ApiRequestError } from '../lib/api';
 import { FullPageSpinner } from '../components/Layout';
@@ -79,13 +83,13 @@ export function DashboardPage() {
             placeholder="Campaign name"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            maxLength={60}
+            maxLength={CAMPAIGN_NAME_LENGTH.max}
           />
           {createError && <p className="text-sm text-red-400">{createError}</p>}
           <button
             type="submit"
             className="btn btn-primary"
-            disabled={busy !== null || name.trim().length < 2}
+            disabled={busy !== null || name.trim().length < CAMPAIGN_NAME_LENGTH.min}
           >
             {busy === 'create' ? 'Creating…' : 'Create campaign'}
           </button>
@@ -93,7 +97,9 @@ export function DashboardPage() {
 
         <form onSubmit={join} className="card space-y-3 p-5">
           <h2 className="font-display text-lg text-amber-400">Join a party</h2>
-          <p className="text-sm text-stone-400">Enter the 6-character code from your DM.</p>
+          <p className="text-sm text-stone-400">
+            Enter the {INVITE_CODE_LENGTH}-character code from your DM.
+          </p>
           <label htmlFor="invite-code" className="sr-only">
             Invite code
           </label>
@@ -102,7 +108,7 @@ export function DashboardPage() {
             className="input font-mono tracking-[0.3em] uppercase"
             placeholder="ABC234"
             value={inviteCode}
-            maxLength={6}
+            maxLength={INVITE_CODE_LENGTH}
             autoComplete="off"
             onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
           />
@@ -110,7 +116,7 @@ export function DashboardPage() {
           <button
             type="submit"
             className="btn btn-primary"
-            disabled={busy !== null || inviteCode.trim().length !== 6}
+            disabled={busy !== null || inviteCode.trim().length !== INVITE_CODE_LENGTH}
           >
             {busy === 'join' ? 'Joining…' : 'Join campaign'}
           </button>

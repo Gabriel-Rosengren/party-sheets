@@ -1,43 +1,19 @@
-import type { AddressInfo } from 'node:net';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { io as ioClient, type Socket } from 'socket.io-client';
-import {
-  emptySheetData,
-  type ClientToServerEvents,
-  type Sheet,
-  type ServerToClientEvents,
-} from '@party-sheets/shared';
+import type { Socket } from 'socket.io-client';
+import request from 'supertest';
+import { describe, expect, it } from 'vitest';
+import { emptySheetData, type ServerToClientEvents, type Sheet } from '@party-sheets/shared';
 import { createServer } from '../src/server';
-import { createCampaign, registerUser } from './helpers';
+import {
+  createCampaign,
+  joinCampaign,
+  listenForSockets,
+  registerUser,
+  type ClientSocket,
+} from './helpers';
 
-type ClientSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
-
-const { app, httpServer, io } = createServer();
-let url = '';
-const sockets: ClientSocket[] = [];
-
-beforeAll(async () => {
-  await new Promise<void>((resolve) => httpServer.listen(0, resolve));
-  url = `http://localhost:${(httpServer.address() as AddressInfo).port}`;
-});
-
-afterAll(async () => {
-  sockets.forEach((s) => s.disconnect());
-  await io.close();
-});
-
-const connect = (cookie?: string, accountId?: string) =>
-  new Promise<ClientSocket>((resolve, reject) => {
-    const socket: ClientSocket = ioClient(url, {
-      transports: ['websocket'],
-      extraHeaders: cookie ? { cookie } : {},
-      auth: accountId ? { accountId } : {},
-      reconnection: false,
-    });
-    sockets.push(socket);
-    socket.on('connect', () => resolve(socket));
-    socket.on('connect_error', reject);
-  });
+const server = createServer();
+const { app } = server;
+const connect = listenForSockets(server);
 
 const joinRoom = (socket: ClientSocket, campaignId: string) =>
   new Promise<void>((resolve, reject) =>
@@ -73,7 +49,7 @@ describe('realtime sheet sharing', () => {
 
     // The DM is told about new members as they join.
     const joined = nextEvent(dmSocket, 'member:joined');
-    await p1.agent.post('/api/campaigns/join').send({ inviteCode: campaign.inviteCode });
+    const sheetId = await joinCampaign(p1.agent, campaign.inviteCode);
     expect((await joined).sheet.ownerName).toBe('Rogue');
     await p2.agent.post('/api/campaigns/join').send({ inviteCode: campaign.inviteCode });
 
@@ -87,9 +63,6 @@ describe('realtime sheet sharing', () => {
     const leaked: Sheet[] = [];
     p2Socket.on('sheet:updated', (s) => leaked.push(s));
     outsiderSocket.on('sheet:updated', (s) => leaked.push(s));
-
-    const sheets = await p1.agent.get(`/api/campaigns/${campaign.id}/sheets`);
-    const sheetId: string = sheets.body.sheets[0].id;
 
     const received = nextEvent(dmSocket, 'sheet:updated');
     await p1.agent
@@ -113,13 +86,10 @@ describe('realtime sheet sharing', () => {
     const dm = await registerUser(app, 'Narrator');
     const player = await registerUser(app, 'Paladin');
     const campaign = await createCampaign(dm.agent);
-    await player.agent.post('/api/campaigns/join').send({ inviteCode: campaign.inviteCode });
+    const sheetId = await joinCampaign(player.agent, campaign.inviteCode);
 
     const playerSocket = await connect(player.cookie, player.user.id);
     await joinRoom(playerSocket, campaign.id);
-
-    const sheets = await dm.agent.get(`/api/campaigns/${campaign.id}/sheets`);
-    const sheetId: string = sheets.body.sheets[0].id;
 
     const received = nextEvent(playerSocket, 'sheet:updated');
     await dm.agent
@@ -132,6 +102,21 @@ describe('realtime sheet sharing', () => {
       version: 2,
       data: { conditions: ['Charmed'] },
     });
+  });
+
+  it('survives malformed events from a signed-in client', async () => {
+    const prankster = await registerUser(app, 'Prankster');
+    // Untyped, so the test can send what a hand-written client could.
+    const socket = (await connect(prankster.cookie, prankster.user.id)) as unknown as Socket;
+
+    socket.emit('campaign:leave', null);
+    socket.emit('campaign:join', { campaignId: 42 }); // wrong type, and no ack callback
+    const reply = await new Promise((resolve) => socket.emit('campaign:join', null, resolve));
+    expect(reply).toEqual({ ok: false, error: 'Campaign not found' });
+
+    // The server is still up and serving.
+    await request(app).get('/api/health').expect(200);
+    expect(socket.connected).toBe(true);
   });
 
   it('broadcasts presence as members connect and disconnect', async () => {

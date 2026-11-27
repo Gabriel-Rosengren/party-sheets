@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
+import { PASSWORD_MIN_LENGTH } from '@party-sheets/shared';
 import { useAuth } from '../auth/AuthContext';
 import { ApiRequestError } from '../lib/api';
 
@@ -111,13 +112,15 @@ function AuthForm({ mode }: { mode: Mode }) {
             type="password"
             autoComplete={isRegister ? 'new-password' : 'current-password'}
             required
-            minLength={isRegister ? 8 : undefined}
+            minLength={isRegister ? PASSWORD_MIN_LENGTH : undefined}
             className="input"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
           {isRegister && !fieldErrors.password && (
-            <p className="mt-1 text-xs text-stone-500">At least 8 characters.</p>
+            <p className="mt-1 text-xs text-stone-500">
+              At least {PASSWORD_MIN_LENGTH} characters.
+            </p>
           )}
           {fieldError('password')}
         </div>
