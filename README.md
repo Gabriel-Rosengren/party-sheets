@@ -14,7 +14,10 @@ the rest, with no refresh.
 
 ## Features
 
-- **Accounts:** register and sign in; the session is a JWT in an `httpOnly` cookie.
+- **Accounts:** register and sign in; each session is a JWT in an `httpOnly` cookie.
+- **One account per tab:** you can be the DM in one tab and a player in another. Each tab
+  remembers its own account, and new tabs offer a choice when several are signed in. The
+  header menu switches account, adds one or signs out just this one.
 - **Campaigns:** create one (you become the DM and get a 6-character invite code) or join one
   with a code. Campaigns you've joined before are listed on your dashboard.
 - **Character sheets:** identity, ability scores with derived modifiers, HP/temp HP, AC, speed,
@@ -37,8 +40,8 @@ the rest, with no refresh.
 | Shared | `zod` schemas and the typed Socket.IO event contract, used by both sides |
 | Server | Node 24, Express 5, Socket.IO 4, Prisma 7 (SQLite in dev), bcrypt, JWT, helmet, rate limiting |
 | Client | React 19, React Router 7, Vite 8, Tailwind CSS 4 |
-| Tests | Vitest: unit tests for shared logic, plus Supertest + socket.io-client integration tests against a real database |
-| CI | GitHub Actions: typecheck, test, build |
+| Tests | Vitest unit tests (shared logic); Supertest + socket.io-client integration tests against a real database; Playwright end-to-end tests in real Chrome tabs |
+| CI | GitHub Actions: typecheck, unit + integration tests, build, and the end-to-end suite |
 
 ## Architecture
 
@@ -114,6 +117,7 @@ private window), then edit the player's HP.
 | --- | --- |
 | `npm run dev` | API on :3001 and Vite on :5173 (proxying `/api` and `/socket.io`) |
 | `npm test` | Shared unit tests, then server integration tests on a throwaway `test.db` |
+| `npm run test:e2e` | Playwright end-to-end tests: builds the client and starts an API on :3101/:5174 with a throwaway `e2e.db` (works next to `npm run dev`; needs Google Chrome) |
 | `npm run typecheck` | `tsc --noEmit` across all workspaces |
 | `npm run build` | Bundle the server (tsup) and the client (Vite) |
 | `npm run db:migrate` | Apply/create Prisma migrations for `dev.db` |
@@ -126,4 +130,4 @@ Candidates for the next iterations:
 - Spells, attacks, skills and saving throws on the sheet
 - Initiative tracker and party-wide dice log
 - Postgres + Docker Compose, then deploy (API and client served from one origin)
-- Client tests (React Testing Library) and a Playwright end-to-end run in CI
+- Client component tests (React Testing Library)
