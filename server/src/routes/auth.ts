@@ -4,6 +4,7 @@ import rateLimit from 'express-rate-limit';
 import { ACCOUNT_HEADER, loginSchema, registerSchema } from '@party-sheets/shared';
 import { prisma } from '../db';
 import { env } from '../env';
+import { isUniqueViolation } from '../lib/db-errors';
 import { conflict, notFound, unauthorized } from '../lib/http-error';
 import { authedUserId, requireAuth } from '../auth/require-auth';
 import {
@@ -71,16 +72,19 @@ export const authRouter = (realtime: RealtimeNotifier) => {
   router.post('/register', credentialLimiter, async (req, res) => {
     const input = registerSchema.parse(req.body);
 
-    const existing = await prisma.user.findUnique({ where: { email: input.email } });
-    if (existing) throw conflict('An account with that email already exists');
+    const emailTaken = () => conflict('An account with that email already exists');
 
-    const user = await prisma.user.create({
-      data: {
-        email: input.email,
-        displayName: input.displayName,
-        passwordHash: await bcrypt.hash(input.password, BCRYPT_ROUNDS),
-      },
-    });
+    // Cheap early answer for the common case, before spending time on the password hash.
+    const existing = await prisma.user.findUnique({ where: { email: input.email } });
+    if (existing) throw emailTaken();
+
+    const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
+    const user = await prisma.user
+      .create({ data: { email: input.email, displayName: input.displayName, passwordHash } })
+      .catch((err: unknown) => {
+        // Another sign-up with this email got in between the check above and this write.
+        throw isUniqueViolation(err) ? emailTaken() : err;
+      });
 
     await startSession(req, res, user.id);
     res.status(201).json({ user: toPublicUser(user) });

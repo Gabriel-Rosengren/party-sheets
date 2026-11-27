@@ -7,7 +7,7 @@ import {
   type CampaignSummary,
 } from '@party-sheets/shared';
 import { prisma } from '../db';
-import { Prisma } from '../generated/prisma/client';
+import { isUniqueViolation } from '../lib/db-errors';
 import { notFound } from '../lib/http-error';
 import { generateInviteCode } from '../lib/invite-code';
 import { authedUserId, requireAuth } from '../auth/require-auth';
@@ -16,6 +16,27 @@ import { sheetInclude, toSheet } from '../serializers';
 import type { RealtimeNotifier } from '../realtime/notifier';
 
 const MAX_INVITE_CODE_ATTEMPTS = 5;
+
+/**
+ * Adds a player and their blank sheet in one transaction, so a player always has exactly
+ * one sheet. Returns null if they're already a member, including when a simultaneous join
+ * by the same player (e.g. a double-click) got in first.
+ */
+const addPlayer = async (userId: string, campaignId: string) => {
+  if (await findMembership(userId, campaignId)) return null;
+  try {
+    return await prisma.$transaction(async (tx) => {
+      await tx.membership.create({ data: { userId, campaignId, role: 'PLAYER' } });
+      return tx.sheet.create({
+        data: { campaignId, ownerId: userId, data: JSON.stringify(emptySheetData()) },
+        include: sheetInclude,
+      });
+    });
+  } catch (err) {
+    if (isUniqueViolation(err)) return null;
+    throw err;
+  }
+};
 
 export const campaignsRouter = (realtime: RealtimeNotifier) => {
   const router = Router();
@@ -65,9 +86,7 @@ export const campaignsRouter = (realtime: RealtimeNotifier) => {
         res.status(201).json({ campaign: { id: campaign.id } });
         return;
       } catch (err) {
-        const isCollision =
-          err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002';
-        if (!isCollision || attempt >= MAX_INVITE_CODE_ATTEMPTS) throw err;
+        if (!isUniqueViolation(err) || attempt >= MAX_INVITE_CODE_ATTEMPTS) throw err;
       }
     }
   });
@@ -79,20 +98,12 @@ export const campaignsRouter = (realtime: RealtimeNotifier) => {
     const campaign = await prisma.campaign.findUnique({ where: { inviteCode } });
     if (!campaign) throw notFound('No campaign found for that invite code');
 
-    if (await findMembership(userId, campaign.id)) {
+    const sheet = await addPlayer(userId, campaign.id);
+    if (!sheet) {
       // Re-joining is idempotent: just send them back to the campaign.
       res.json({ campaign: { id: campaign.id }, alreadyMember: true });
       return;
     }
-
-    // Membership and sheet are created together: a player always has exactly one sheet.
-    const sheet = await prisma.$transaction(async (tx) => {
-      await tx.membership.create({ data: { userId, campaignId: campaign.id, role: 'PLAYER' } });
-      return tx.sheet.create({
-        data: { campaignId: campaign.id, ownerId: userId, data: JSON.stringify(emptySheetData()) },
-        include: sheetInclude,
-      });
-    });
 
     realtime.memberJoined(campaign.id, toSheet(sheet));
     res.status(201).json({ campaign: { id: campaign.id }, alreadyMember: false });
