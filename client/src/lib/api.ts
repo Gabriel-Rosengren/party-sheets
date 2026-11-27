@@ -43,6 +43,8 @@ export const setSessionLostHandler = (handler: (() => void) | null) => {
 };
 export const notifySessionLost = () => onSessionLost?.();
 
+const UNEXPECTED_RESPONSE = 'Unexpected response from the server';
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   // Every request names the account this tab acts as; see tab-account.ts.
   const headers: Record<string, string> = {};
@@ -59,11 +61,15 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 
   if (res.status === 204) return undefined as T;
 
-  const json = (await res.json().catch(() => ({}))) as Partial<ApiError> & T;
+  // null when the body isn't JSON, e.g. a proxy or host serving an HTML page instead. That
+  // isn't a real API answer, so it's an error even with a success status: callers never get
+  // an empty object they would trip over later.
+  const json = (await res.json().catch(() => null)) as (Partial<ApiError> & T) | null;
   if (!res.ok) {
     if (res.status === 401 && account && !path.startsWith('/auth/')) notifySessionLost();
-    throw new ApiRequestError(res.status, json.error ?? res.statusText, json.issues, json);
+    throw new ApiRequestError(res.status, json?.error ?? UNEXPECTED_RESPONSE, json?.issues, json);
   }
+  if (json === null) throw new ApiRequestError(res.status, UNEXPECTED_RESPONSE);
   return json;
 }
 
