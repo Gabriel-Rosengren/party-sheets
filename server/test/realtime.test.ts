@@ -1,4 +1,5 @@
 import type { AddressInfo } from 'node:net';
+import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { io as ioClient, type Socket } from 'socket.io-client';
 import {
@@ -132,6 +133,21 @@ describe('realtime sheet sharing', () => {
       version: 2,
       data: { conditions: ['Charmed'] },
     });
+  });
+
+  it('survives malformed events from a signed-in client', async () => {
+    const prankster = await registerUser(app, 'Prankster');
+    // Untyped, so the test can send what a hand-written client could.
+    const socket = (await connect(prankster.cookie, prankster.user.id)) as unknown as Socket;
+
+    socket.emit('campaign:leave', null);
+    socket.emit('campaign:join', { campaignId: 42 }); // wrong type, and no ack callback
+    const reply = await new Promise((resolve) => socket.emit('campaign:join', null, resolve));
+    expect(reply).toEqual({ ok: false, error: 'Campaign not found' });
+
+    // The server is still up and serving.
+    await request(app).get('/api/health').expect(200);
+    expect(socket.connected).toBe(true);
   });
 
   it('broadcasts presence as members connect and disconnect', async () => {
