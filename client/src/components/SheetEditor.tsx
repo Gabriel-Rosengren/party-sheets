@@ -12,7 +12,7 @@ import { HpBar } from './HpBar';
 
 interface Props {
   data: SheetData;
-  /** Omit for a read-only sheet (the DM's view). */
+  /** Omit for a read-only sheet. */
   onChange?: (next: SheetData) => void;
 }
 

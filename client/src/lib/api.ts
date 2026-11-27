@@ -16,6 +16,8 @@ export class ApiRequestError extends Error {
     public readonly status: number,
     message: string,
     public readonly issues: ApiError['issues'] = [],
+    /** The full error body, for endpoints that return more than a message (e.g. 409s). */
+    public readonly body: unknown = undefined,
   ) {
     super(message);
     this.name = 'ApiRequestError';
@@ -38,7 +40,8 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   if (res.status === 204) return undefined as T;
 
   const json = (await res.json().catch(() => ({}))) as Partial<ApiError> & T;
-  if (!res.ok) throw new ApiRequestError(res.status, json.error ?? res.statusText, json.issues);
+  if (!res.ok)
+    throw new ApiRequestError(res.status, json.error ?? res.statusText, json.issues, json);
   return json;
 }
 
@@ -57,6 +60,6 @@ export const api = {
   getCampaign: (id: string) => request<{ campaign: CampaignDetail }>('GET', `/campaigns/${id}`),
   getCampaignSheets: (id: string) => request<{ sheets: Sheet[] }>('GET', `/campaigns/${id}/sheets`),
 
-  updateSheet: (id: string, data: SheetData) =>
-    request<{ sheet: Sheet }>('PUT', `/sheets/${id}`, { data }),
+  updateSheet: (id: string, data: SheetData, baseVersion: number) =>
+    request<{ sheet: Sheet }>('PUT', `/sheets/${id}`, { data, baseVersion }),
 };

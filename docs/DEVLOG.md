@@ -8,6 +8,79 @@ and use conventional-commit prefixes (`feat`, `fix`, `chore`, `ci`, `docs`).
 
 ---
 
+## 2026-11-27: Session 2, DM can edit party sheets
+
+**Branch:** `feat/dm-edit-sheets` (off `main` after PR #1 was merged)
+**Pairing:** Gabriel + Claude Code (Claude Opus 5.5)
+
+### Goal
+
+The DM can edit every sheet in a campaign they run (apply damage, add conditions), and the
+player sees it live. Now that two people can write the same sheet, neither may silently lose
+an edit.
+
+### Decisions
+
+| Decision | Why |
+| --- | --- |
+| Reuse the existing access rule: owner **or** the campaign's DM may read *and* write | One check (`loadAccessibleSheet`) for both. Anyone else, including a DM of another campaign, still gets 404. |
+| Optimistic concurrency: `PUT` requires `baseVersion`; a stale one gets `409` + the current sheet | The `version` counter from session 1 made this cheap. Rejecting is safer than last-write-wins, and returning the current copy saves the client a round trip. |
+| Conditional `updateMany` + read-back in one transaction | The write and the "did it land?" check are atomic, and the returned row is the one this write produced even if another save follows immediately. |
+| Client-side three-way merge (`mergeThreeWay` in `shared`) | On a 409 or a realtime update, the client's unsaved edits are rebased onto the newer copy: fields it changed keep its value, everything else takes the server value. Objects such as `hp` merge per key, so "DM lowers current HP" and "player raises max HP" both survive. When both changed the same field, the person saving now wins, and they see the result. |
+| Autosave tracks a dirty flag, and the save reads the latest draft | A queued save must send the *merged* draft, not a snapshot taken before a remote edit arrived. Otherwise it would overwrite the change it was just merged with. |
+| One `EditableSheet` component for the player and the DM | Same autosave, merge and status UI in both places. The DM's copy is keyed by sheet id, so switching players starts a fresh draft. |
+| Required `baseVersion` rather than an optional one or an `If-Match` header | Old clients can't keep blindly overwriting, and the contract stays in the shared zod schema. |
+
+### What was built (in commit order)
+
+1. `feat(shared): add three-way merge for concurrent sheet edits`: `mergeThreeWay` plus 4
+   unit tests; `shared` now has its own Vitest suite and root `npm test` runs every workspace.
+   `updateSheetSchema` gains `baseVersion`, and there is a new `SheetConflict` 409 body type.
+2. `feat(server): let the DM edit sheets in their campaign`: PUT allows owner or DM, with a
+   version-guarded write. New tests: DM edits a player's sheet, a DM of another campaign gets
+   404, a stale save gets 409 and doesn't overwrite, a retry on the current version succeeds,
+   and the DM's edit is streamed to the owner's socket.
+3. `feat(client): let the DM edit party sheets live`: `useSheetDraft` hook (draft, base
+   version, rebase on newer copies, retry on 409 up to 3 times), `EditableSheet` component, DM
+   view uses it for the selected sheet.
+4. `docs: log DM sheet editing`
+
+### Problems hit and how they were solved
+
+- **Autosave used to queue a value snapshot.** With merging, a queued snapshot could predate a
+  remote edit and overwrite it on save. Changed `useAutosave` to a dirty flag, with the save
+  function reading the current draft from a ref.
+- **Out-of-order responses.** A realtime event for a *later* version can arrive before the PUT
+  response for an earlier one. The client only moves its base version forward, never back.
+- **My own mistake during the mutation check:** I restored the route file with `git checkout`,
+  which brought back the committed version and wiped the uncommitted new route. I had taken a
+  backup first and restored from it. Lesson: mutate a copy, or commit before mutation testing.
+- **Dev servers already running** (from Gabriel's own `npm run dev`) held ports 3001/5173. I
+  used them as they were, since both reload on file changes, rather than stopping them.
+
+### Verification
+
+- `npm test`: **17/17 passing** (4 shared unit + 13 server integration).
+- Mutation check: removing the `version: baseVersion` guard makes the stale-save test fail.
+- `npm run typecheck` clean. `npm run build` succeeds.
+- **Manual end-to-end in the browser** (DM in the browser, Aria driven by a script):
+  - DM sets Aria's current HP 19 → 12; Aria's next read returns 12.
+  - Aria adds *Poisoned*; it appears in the DM's open editor without a reload.
+  - Aria saves a note just before the DM's debounced save fires: the DM's draft is rebased
+    from the realtime event and the save goes out on the new version, no conflict.
+  - Forced race: the DM's save was held in flight (15 s delay patched into `fetch`) while Aria
+    saved her background. The DM's save got **409**, merged and retried, then got **200**. The
+    final sheet has the DM's speed *and* Aria's background, alignment and note.
+
+### Known limitations / next steps
+
+- Same-field conflicts resolve to "whoever saves last wins", with no prompt.
+- Players aren't told *who* changed their sheet. A `lastEditedBy` field would allow a
+  "Your DM set HP to 7" notice.
+- Still no client-side automated tests; the merge logic is unit-tested in `shared`.
+
+---
+
 ## 2026-11-26: Session 1, scaffold to MVP
 
 **Branch:** `feat/mvp-scaffold` (off `main`) → [PR #1](https://github.com/Gabriel-Rosengren/party-sheets/pull/1)

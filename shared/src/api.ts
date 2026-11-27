@@ -37,6 +37,8 @@ export type JoinCampaignInput = z.input<typeof joinCampaignSchema>;
 
 export const updateSheetSchema = z.object({
   data: sheetDataSchema,
+  /** The version this edit is based on. The save is rejected (409) if the sheet moved on. */
+  baseVersion: z.number().int().positive(),
 });
 export type UpdateSheetInput = z.input<typeof updateSheetSchema>;
 
@@ -88,4 +90,9 @@ export interface Sheet {
 export interface ApiError {
   error: string;
   issues?: { path: string; message: string }[];
+}
+
+/** 409 body from `PUT /api/sheets/:id`: someone saved first, here is their copy. */
+export interface SheetConflict extends ApiError {
+  sheet: Sheet;
 }

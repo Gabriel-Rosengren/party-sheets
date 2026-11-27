@@ -12,7 +12,7 @@ the rest, with no refresh.
 > step-by-step build log, including decisions, dead ends and how they were fixed, is in
 > [`docs/DEVLOG.md`](docs/DEVLOG.md).
 
-## Features (MVP)
+## Features
 
 - **Accounts:** register and sign in; the session is a JWT in an `httpOnly` cookie.
 - **Campaigns:** create one (you become the DM and get a 6-character invite code) or join one
@@ -21,7 +21,11 @@ the rest, with no refresh.
   initiative, proficiency bonus, 5e conditions, inventory and notes. Changes autosave with a
   debounce, and saves never overlap.
 - **Live DM view:** every player's sheet appears as a card that updates the instant the player
-  saves, with online/offline presence and a highlight on change. Click a card for the full sheet.
+  saves, with online/offline presence and a highlight on change. Click a card to open the full
+  sheet and edit it (apply damage, add a condition); the player sees the change live.
+- **No lost edits:** saves carry the version they're based on, and a stale save gets `409`.
+  The client then merges both people's edits field by field (three-way merge) and retries, so
+  a DM and a player editing the same sheet at once both keep their changes.
 - **Privacy by design:** players only ever receive their own sheet. This is enforced on the
   server for both REST and WebSocket fan-out, and covered by tests.
 
@@ -33,7 +37,7 @@ the rest, with no refresh.
 | Shared | `zod` schemas and the typed Socket.IO event contract, used by both sides |
 | Server | Node 24, Express 5, Socket.IO 4, Prisma 7 (SQLite in dev), bcrypt, JWT, helmet, rate limiting |
 | Client | React 19, React Router 7, Vite 8, Tailwind CSS 4 |
-| Tests | Vitest + Supertest + socket.io-client integration tests against a real database |
+| Tests | Vitest: unit tests for shared logic, plus Supertest + socket.io-client integration tests against a real database |
 | CI | GitHub Actions: typecheck, test, build |
 
 ## Architecture
@@ -109,17 +113,16 @@ private window), then edit the player's HP.
 | Command | What it does |
 | --- | --- |
 | `npm run dev` | API on :3001 and Vite on :5173 (proxying `/api` and `/socket.io`) |
-| `npm test` | Server integration tests on a throwaway `test.db` |
+| `npm test` | Shared unit tests, then server integration tests on a throwaway `test.db` |
 | `npm run typecheck` | `tsc --noEmit` across all workspaces |
 | `npm run build` | Bundle the server (tsup) and the client (Vite) |
 | `npm run db:migrate` | Apply/create Prisma migrations for `dev.db` |
 
 ## Roadmap
 
-The MVP is done. Candidates for the next iterations:
+Candidates for the next iterations:
 
-- DM-side editing (e.g. apply damage to a player) with conflict handling
-- Optimistic concurrency (`If-Match: version`) instead of last-write-wins across tabs
+- Show who made the last change ("Your DM set HP to 7")
 - Spells, attacks, skills and saving throws on the sheet
 - Initiative tracker and party-wide dice log
 - Postgres + Docker Compose, then deploy (API and client served from one origin)
