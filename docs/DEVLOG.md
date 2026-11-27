@@ -63,6 +63,32 @@ server still answers. Written first, it failed with the same unhandled rejection
 - Typecheck, Prettier and build are clean. 4 shared + 24 server tests pass (one new), and all
   7 Playwright E2E tests pass in Chrome.
 
+### CI failure: sign-out didn't revoke sessions
+
+After the PR was opened, CI's e2e job failed on "signing out ends that account in its other
+tabs too". The CI trace showed the cause: tab 2's sign-out closed tab 1's socket, and tab 1
+asked `/auth/me` 6 ms later, while the browser still held the cookie. The token was still
+valid, because sign-out only cleared the cookie, so tab 1 got 200 and stayed signed in.
+Locally the test failed 2 runs in 30, so the single local run before opening the PR had
+missed it. It was already on `main` from PR #4, but a PR to main must not carry a known bug,
+so it was fixed here.
+
+- New `Session` table (id = the JWT's `jti`). A token is accepted only while its row exists,
+  and sign-out deletes the row *before* closing sockets. A copied cookie also stops working at
+  sign-out, where before it stayed valid for up to 7 days.
+- Signing in again to an account the browser already has a session for keeps that session.
+- New test: a token copied before sign-out is refused by the API, the account list and the
+  socket handshake. Mutation check: skipping the row lookup fails it.
+- Verified: 4 shared + 25 server tests pass, and the full e2e suite passes 10 times over
+  (70/70) plus the sign-out test 40/40. Checked in the running app with two tabs: signing out
+  in tab 2 sends tab 1 to sign-in.
+- Existing sign-ins (tokens without a row) are no longer accepted, so everyone signs in once
+  more. `dev.db` got the new migration via `prisma migrate dev`.
+
+New standing rules from Gabriel: run tests locally (with the e2e suite repeated to catch
+races) and check behaviour in the app before opening a PR, never hand over a PR with a known
+bug, and give every PR a ready review comment and merge description.
+
 ### Noted, not changed
 
 - Registering with an email already in use, or two simultaneous joins by one player, can race
