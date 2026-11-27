@@ -2,7 +2,7 @@ import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { ACCOUNT_HEADER, emptySheetData } from '@party-sheets/shared';
 import { createServer } from '../src/server';
-import { sessionCookieName, signSession } from '../src/auth/session';
+import { sessionCookieName } from '../src/auth/session';
 import {
   PASSWORD,
   TestBrowser,
@@ -84,7 +84,8 @@ describe('several accounts in one browser', () => {
     const victim = await registerUser(app, 'Victim');
     const attacker = await registerUser(app, 'Attacker');
     // Attacker's own valid token, placed where the victim's session would be.
-    const forged = `${sessionCookieName(victim.user.id)}=${signSession(attacker.user.id)}`;
+    const attackerToken = attacker.cookie.split(';')[0]?.split('=')[1];
+    const forged = `${sessionCookieName(victim.user.id)}=${attackerToken}`;
     await request(app)
       .get('/api/auth/me')
       .set('Cookie', forged)
@@ -127,10 +128,32 @@ describe('several accounts in one browser', () => {
       .post('/api/auth/register', { email, displayName: 'Returning', password: PASSWORD });
     const a: string = reg.body.user.id;
     const b = await browser.signUp('Other');
+    const cookiesBefore = browser.cookieHeader;
 
     await browser.tab().post('/api/auth/login', { email, password: PASSWORD });
     expect(await whoAmI(browser, a)).toBe('Returning');
     expect(await whoAmI(browser, b)).toBe('Other');
+    // The existing session is reused rather than replaced by a new one.
+    expect(browser.cookieHeader).toBe(cookiesBefore);
+  });
+
+  it('refuses a signed-out token even if the browser still sends it', async () => {
+    const browser = new TestBrowser(app);
+    const id = await browser.signUp('Copied');
+    // A copy of the cookie taken before sign-out, like a tab whose browser hasn't applied
+    // the cleared cookie yet, or someone who copied it.
+    const copiedCookie = browser.cookieHeader;
+
+    expect((await browser.tab(id).post('/api/auth/logout')).status).toBe(204);
+
+    await request(app)
+      .get('/api/auth/me')
+      .set('Cookie', copiedCookie)
+      .set(ACCOUNT_HEADER, id)
+      .expect(401);
+    const accounts = await request(app).get('/api/auth/accounts').set('Cookie', copiedCookie);
+    expect(accounts.body.accounts).toEqual([]);
+    await expect(connect(copiedCookie, id)).rejects.toThrow('unauthorized');
   });
 
   it('caps the number of accounts per browser, keeping the newest', async () => {

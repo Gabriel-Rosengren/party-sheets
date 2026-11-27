@@ -47,18 +47,24 @@ export const createIoServer = (): IoServer =>
 export const registerSocketHandlers = (io: IoServer): void => {
   // Same rule as the REST API: the handshake names an account (`auth.accountId`) and the
   // browser must hold a valid session cookie for it. Anything else is rejected outright.
-  io.use((socket, next) => {
-    const auth: unknown = socket.handshake.auth;
-    const accountId =
-      typeof auth === 'object' && auth !== null && 'accountId' in auth ? auth.accountId : null;
-    const session =
-      typeof accountId === 'string'
-        ? sessionForAccount(parseCookie(socket.handshake.headers.cookie ?? ''), accountId)
-        : null;
-    if (!session) return next(new Error('unauthorized'));
-    socket.data.userId = session.userId;
-    socket.data.sessionId = session.sessionId;
-    next();
+  io.use(async (socket, next) => {
+    try {
+      const auth: unknown = socket.handshake.auth;
+      const accountId =
+        typeof auth === 'object' && auth !== null && 'accountId' in auth ? auth.accountId : null;
+      const session =
+        typeof accountId === 'string'
+          ? await sessionForAccount(parseCookie(socket.handshake.headers.cookie ?? ''), accountId)
+          : null;
+      if (!session) return next(new Error('unauthorized'));
+      socket.data.userId = session.userId;
+      socket.data.sessionId = session.sessionId;
+      next();
+    } catch (err) {
+      // Same rule as the event handlers: never let a rejection escape and crash the server.
+      console.error('socket auth failed', err);
+      next(new Error('unauthorized'));
+    }
   });
 
   /** Tells everyone in a campaign who is connected. Never throws: presence is best effort. */

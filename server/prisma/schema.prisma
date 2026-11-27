@@ -16,6 +16,22 @@ model User {
   memberships  Membership[]
   sheets       Sheet[]
   campaignsRun Campaign[]   @relation("CampaignDm")
+  sessions     Session[]
+}
+
+/// One row per sign-in. The session cookie holds a signed JWT whose `jti` is this row's id,
+/// and a token is only accepted while its row exists. Signing out deletes the row, so the
+/// token stops working immediately, even if a browser (or anyone who copied the cookie)
+/// still has it.
+model Session {
+  id        String   @id
+  userId    String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 model Campaign {

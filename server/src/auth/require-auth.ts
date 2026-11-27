@@ -15,9 +15,9 @@ declare module 'express-serve-static-core' {
  * Acting as an account is never implicit: a tab that doesn't say who it is gets 401, even
  * if the browser holds sessions for other accounts.
  */
-export const requireAuth: RequestHandler = (req, _res, next) => {
-  const session = sessionForAccount(req.cookies ?? {}, req.get(ACCOUNT_HEADER));
-  if (!session) return next(unauthorized());
+export const requireAuth: RequestHandler = async (req, _res, next) => {
+  const session = await sessionForAccount(req.cookies ?? {}, req.get(ACCOUNT_HEADER));
+  if (!session) throw unauthorized();
   req.userId = session.userId;
   req.sessionId = session.sessionId;
   next();

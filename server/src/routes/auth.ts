@@ -10,11 +10,12 @@ import {
   LEGACY_SESSION_COOKIE,
   MAX_ACCOUNTS_PER_BROWSER,
   clearSessionCookieOptions,
+  createSession,
+  revokeSession,
   sessionCookieName,
   sessionCookieOptions,
   sessionForAccount,
   sessionsInJar,
-  signSession,
 } from '../auth/session';
 import type { RealtimeNotifier } from '../realtime/notifier';
 import { toPublicUser } from '../serializers';
@@ -36,25 +37,35 @@ const credentialLimiter = rateLimit({
 export const authRouter = (realtime: RealtimeNotifier) => {
   const router = Router();
 
-  const endSession = (res: Response, userId: string, sessionId: string) => {
+  /**
+   * Signs a session out. The row goes first: the sockets closed next make their tabs check
+   * who they are, and that check must already see the session as gone, even though this
+   * browser may not have applied the cleared cookie yet.
+   */
+  const endSession = async (res: Response, userId: string, sessionId: string) => {
+    await revokeSession(sessionId);
     res.clearCookie(sessionCookieName(userId), clearSessionCookieOptions);
     realtime.sessionEnded(sessionId);
   };
 
   /**
-   * Adds a session for `userId` next to the browser's other accounts. Other accounts are
-   * left alone (that's what keeps other tabs on their own account), except the oldest
-   * ones beyond the per-browser limit.
+   * Signs `userId` in next to the browser's other accounts. Other accounts are left alone
+   * (that's what keeps other tabs on their own account), except the oldest ones beyond the
+   * per-browser limit. If the browser already has an active session for `userId`, it is
+   * kept as is, so its open tabs and sockets carry on.
    */
-  const startSession = (req: Request, res: Response, userId: string) => {
-    const others = sessionsInJar(req.cookies ?? {}).filter((s) => s.userId !== userId);
+  const startSession = async (req: Request, res: Response, userId: string) => {
+    const sessions = await sessionsInJar(req.cookies ?? {});
+    const others = sessions.filter((s) => s.userId !== userId);
     for (const stale of others.slice(MAX_ACCOUNTS_PER_BROWSER - 1)) {
-      endSession(res, stale.userId, stale.sessionId);
+      await endSession(res, stale.userId, stale.sessionId);
     }
     if (req.cookies?.[LEGACY_SESSION_COOKIE]) {
       res.clearCookie(LEGACY_SESSION_COOKIE, clearSessionCookieOptions);
     }
-    res.cookie(sessionCookieName(userId), signSession(userId), sessionCookieOptions);
+    if (!sessions.some((s) => s.userId === userId)) {
+      res.cookie(sessionCookieName(userId), await createSession(userId), sessionCookieOptions);
+    }
   };
 
   router.post('/register', credentialLimiter, async (req, res) => {
@@ -71,7 +82,7 @@ export const authRouter = (realtime: RealtimeNotifier) => {
       },
     });
 
-    startSession(req, res, user.id);
+    await startSession(req, res, user.id);
     res.status(201).json({ user: toPublicUser(user) });
   });
 
@@ -82,14 +93,14 @@ export const authRouter = (realtime: RealtimeNotifier) => {
     const passwordMatches = await bcrypt.compare(input.password, user?.passwordHash ?? DUMMY_HASH);
     if (!user || !passwordMatches) throw unauthorized('Invalid email or password');
 
-    startSession(req, res, user.id);
+    await startSession(req, res, user.id);
     res.json({ user: toPublicUser(user) });
   });
 
   // Signs out only the account this tab acts as; other accounts stay signed in.
-  router.post('/logout', (req, res) => {
-    const session = sessionForAccount(req.cookies ?? {}, req.get(ACCOUNT_HEADER));
-    if (session) endSession(res, session.userId, session.sessionId);
+  router.post('/logout', async (req, res) => {
+    const session = await sessionForAccount(req.cookies ?? {}, req.get(ACCOUNT_HEADER));
+    if (session) await endSession(res, session.userId, session.sessionId);
     res.status(204).end();
   });
 
@@ -101,7 +112,7 @@ export const authRouter = (realtime: RealtimeNotifier) => {
 
   /** Accounts signed in on this browser, most recent first. A new tab picks from these. */
   router.get('/accounts', async (req, res) => {
-    const sessions = sessionsInJar(req.cookies ?? {});
+    const sessions = await sessionsInJar(req.cookies ?? {});
     const users = await prisma.user.findMany({
       where: { id: { in: sessions.map((s) => s.userId) } },
     });
