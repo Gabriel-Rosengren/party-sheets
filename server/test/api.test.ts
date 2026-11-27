@@ -92,17 +92,83 @@ describe('campaigns and sheets', () => {
 
     // Only the owner can write; versions increment.
     const data = { ...emptySheetData(), characterName: 'Thia', level: 3 };
-    await dm.agent.put(`/api/sheets/${p1SheetId}`).send({ data }).expect(403);
-    await p2.agent.put(`/api/sheets/${p1SheetId}`).send({ data }).expect(404);
-    const saved = await p1.agent.put(`/api/sheets/${p1SheetId}`).send({ data }).expect(200);
+    await p2.agent.put(`/api/sheets/${p1SheetId}`).send({ data, baseVersion: 1 }).expect(404);
+    const saved = await p1.agent
+      .put(`/api/sheets/${p1SheetId}`)
+      .send({ data, baseVersion: 1 })
+      .expect(200);
     expect(saved.body.sheet.version).toBe(2);
     expect(saved.body.sheet.data).toMatchObject({ characterName: 'Thia', level: 3 });
 
-    // Invalid sheet data is rejected.
+    // Invalid sheet data, or a missing base version, is rejected.
     await p1.agent
       .put(`/api/sheets/${p1SheetId}`)
-      .send({ data: { ...data, level: 99 } })
+      .send({ data: { ...data, level: 99 }, baseVersion: 2 })
       .expect(400);
+    await p1.agent.put(`/api/sheets/${p1SheetId}`).send({ data }).expect(400);
+  });
+
+  it('lets the DM edit any sheet in their campaign, but not other campaigns', async () => {
+    const dm = await registerUser(app, 'Keeper');
+    const player = await registerUser(app, 'Fighter');
+    const otherDm = await registerUser(app, 'Rival');
+    const campaign = await createCampaign(dm.agent);
+    await createCampaign(otherDm.agent);
+    await player.agent.post('/api/campaigns/join').send({ inviteCode: campaign.inviteCode });
+
+    const { body } = await player.agent.get(`/api/campaigns/${campaign.id}/sheets`);
+    const sheetId: string = body.sheets[0].id;
+    const data = { ...emptySheetData(), hp: { current: 3, max: 12, temp: 0 } };
+
+    // A DM of a different campaign gets a 404, the same as any outsider.
+    await otherDm.agent.put(`/api/sheets/${sheetId}`).send({ data, baseVersion: 1 }).expect(404);
+
+    const saved = await dm.agent
+      .put(`/api/sheets/${sheetId}`)
+      .send({ data, baseVersion: 1 })
+      .expect(200);
+    expect(saved.body.sheet).toMatchObject({ version: 2, ownerName: 'Fighter' });
+
+    // The player sees the DM's change, and the sheet still belongs to them.
+    const mine = await player.agent.get(`/api/sheets/${sheetId}`).expect(200);
+    expect(mine.body.sheet).toMatchObject({ ownerId: player.user.id, version: 2 });
+    expect(mine.body.sheet.data.hp.current).toBe(3);
+  });
+
+  it('rejects a save based on a stale version and returns the current copy', async () => {
+    const dm = await registerUser(app, 'Arbiter');
+    const player = await registerUser(app, 'Wizard');
+    const campaign = await createCampaign(dm.agent);
+    await player.agent.post('/api/campaigns/join').send({ inviteCode: campaign.inviteCode });
+    const { body } = await player.agent.get(`/api/campaigns/${campaign.id}/sheets`);
+    const sheetId: string = body.sheets[0].id;
+
+    // Both start from version 1. The DM saves first.
+    await dm.agent
+      .put(`/api/sheets/${sheetId}`)
+      .send({ data: { ...emptySheetData(), conditions: ['Poisoned'] }, baseVersion: 1 })
+      .expect(200);
+
+    // The player's save, still based on version 1, must not overwrite the DM's edit.
+    const conflict = await player.agent
+      .put(`/api/sheets/${sheetId}`)
+      .send({ data: { ...emptySheetData(), notes: 'Found a key' }, baseVersion: 1 })
+      .expect(409);
+    expect(conflict.body.sheet).toMatchObject({ version: 2, data: { conditions: ['Poisoned'] } });
+
+    // Retrying on top of the current version succeeds.
+    await player.agent
+      .put(`/api/sheets/${sheetId}`)
+      .send({
+        data: { ...conflict.body.sheet.data, notes: 'Found a key' },
+        baseVersion: 2,
+      })
+      .expect(200);
+    const final = await dm.agent.get(`/api/sheets/${sheetId}`).expect(200);
+    expect(final.body.sheet).toMatchObject({
+      version: 3,
+      data: { conditions: ['Poisoned'], notes: 'Found a key' },
+    });
   });
 
   it('lists campaigns with the caller role', async () => {

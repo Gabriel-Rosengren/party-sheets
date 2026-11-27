@@ -92,6 +92,7 @@ describe('realtime sheet sharing', () => {
       .put(`/api/sheets/${sheetId}`)
       .send({
         data: { ...emptySheetData(), characterName: 'Vex', hp: { current: 4, max: 12, temp: 0 } },
+        baseVersion: 1,
       })
       .expect(200);
 
@@ -102,6 +103,31 @@ describe('realtime sheet sharing', () => {
     // Give any wrongly-routed event a moment to arrive before asserting none did.
     await new Promise((r) => setTimeout(r, 100));
     expect(leaked).toEqual([]);
+  });
+
+  it("streams a DM's edit to the sheet's owner", async () => {
+    const dm = await registerUser(app, 'Narrator');
+    const player = await registerUser(app, 'Paladin');
+    const campaign = await createCampaign(dm.agent);
+    await player.agent.post('/api/campaigns/join').send({ inviteCode: campaign.inviteCode });
+
+    const playerSocket = await connect(player.cookie);
+    await joinRoom(playerSocket, campaign.id);
+
+    const sheets = await dm.agent.get(`/api/campaigns/${campaign.id}/sheets`);
+    const sheetId: string = sheets.body.sheets[0].id;
+
+    const received = nextEvent(playerSocket, 'sheet:updated');
+    await dm.agent
+      .put(`/api/sheets/${sheetId}`)
+      .send({ data: { ...emptySheetData(), conditions: ['Charmed'] }, baseVersion: 1 })
+      .expect(200);
+
+    expect(await received).toMatchObject({
+      id: sheetId,
+      version: 2,
+      data: { conditions: ['Charmed'] },
+    });
   });
 
   it('broadcasts presence as members connect and disconnect', async () => {
