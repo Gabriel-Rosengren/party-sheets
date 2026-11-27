@@ -6,7 +6,7 @@ import { ApiRequestError } from '../lib/api';
 type Mode = 'login' | 'register';
 
 function AuthForm({ mode }: { mode: Mode }) {
-  const { login, register } = useAuth();
+  const { login, register, accounts, switchAccount } = useAuth();
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
@@ -49,6 +49,26 @@ function AuthForm({ mode }: { mode: Mode }) {
           ? 'Create an account to start or join a campaign.'
           : 'Sign in to reach your campaigns.'}
       </p>
+
+      {!isRegister && accounts.length > 0 && (
+        <div className="card mb-4 space-y-2 p-4" aria-label="Accounts signed in on this browser">
+          <p className="label">Signed in on this browser</p>
+          {accounts.map((account) => (
+            <button
+              key={account.id}
+              type="button"
+              className="btn btn-ghost w-full justify-between"
+              onClick={() => void switchAccount(account)}
+            >
+              <span>Continue as {account.displayName}</span>
+              <span className="truncate text-xs text-stone-500">{account.email}</span>
+            </button>
+          ))}
+          <p className="pt-1 text-center text-xs text-stone-500">
+            or sign in to another account below
+          </p>
+        </div>
+      )}
 
       <form onSubmit={onSubmit} className="card space-y-4 p-6" noValidate>
         <div>

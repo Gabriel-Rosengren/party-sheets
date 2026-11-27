@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
-import type { ClientToServerEvents, ServerToClientEvents } from '@party-sheets/shared';
+import type { ClientToServerEvents, ServerToClientEvents, SocketAuth } from '@party-sheets/shared';
+import { useCurrentUser } from '../auth/AuthContext';
+import { notifySessionLost } from '../lib/api';
 
 type CampaignSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
@@ -21,10 +23,13 @@ export function useCampaignSocket(campaignId: string, handlers: Handlers) {
   const [status, setStatus] = useState<ConnectionStatus>('connecting');
   const handlersRef = useRef(handlers);
   handlersRef.current = handlers;
+  const accountId = useCurrentUser().id;
 
   useEffect(() => {
     // Same origin as the page; the Vite dev server proxies /socket.io to the API.
-    const socket: CampaignSocket = io({ withCredentials: true });
+    // The handshake names this tab's account, like the X-Account header on REST calls.
+    const auth: SocketAuth = { accountId };
+    const socket: CampaignSocket = io({ withCredentials: true, auth });
     let hasConnectedBefore = false;
 
     socket.on('connect', () => {
@@ -38,8 +43,23 @@ export function useCampaignSocket(campaignId: string, handlers: Handlers) {
         hasConnectedBefore = true;
       });
     });
-    socket.on('disconnect', () => setStatus('reconnecting'));
-    socket.on('connect_error', () => setStatus('reconnecting'));
+    socket.on('disconnect', (reason) => {
+      // The server only closes a socket itself when its session was signed out.
+      if (reason === 'io server disconnect') {
+        setStatus('error');
+        notifySessionLost();
+      } else {
+        setStatus('reconnecting');
+      }
+    });
+    socket.on('connect_error', (err) => {
+      if (err.message === 'unauthorized') {
+        setStatus('error');
+        notifySessionLost();
+      } else {
+        setStatus('reconnecting');
+      }
+    });
 
     socket.on('sheet:updated', (sheet) => handlersRef.current['sheet:updated']?.(sheet));
     socket.on('member:joined', (p) => handlersRef.current['member:joined']?.(p));
@@ -49,7 +69,7 @@ export function useCampaignSocket(campaignId: string, handlers: Handlers) {
       socket.emit('campaign:leave', { campaignId });
       socket.disconnect();
     };
-  }, [campaignId]);
+  }, [campaignId, accountId]);
 
   return status;
 }
