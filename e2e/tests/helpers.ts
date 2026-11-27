@@ -20,8 +20,11 @@ export const expectSignedInAs = async (page: Page, user: TestUser) => {
   await expect(accountButton(page)).toContainText(user.displayName);
 };
 
-/** Fills the registration form; the page must already be on /register. */
+/** Fills the registration form; the page must be on (or navigating to) /register. */
 export const submitRegistration = async (page: Page, user: TestUser) => {
+  // Wait for the register form itself: the sign-in form has an Email field too, and
+  // filling it mid-navigation loses the value.
+  await expect(page.getByRole('heading', { name: 'Join the party' })).toBeVisible();
   await page.getByLabel('Email').fill(user.email);
   await page.getByLabel('Display name').fill(user.displayName);
   await page.getByLabel('Password').fill(user.password);
