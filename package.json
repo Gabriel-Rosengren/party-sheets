@@ -7,7 +7,8 @@
   "workspaces": [
     "shared",
     "server",
-    "client"
+    "client",
+    "e2e"
   ],
   "engines": {
     "node": ">=20"
@@ -18,7 +19,8 @@
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "db:migrate": "npm run db:migrate -w server",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "test:e2e": "npm run e2e -w e2e"
   },
   "devDependencies": {
     "concurrently": "^10.0.7",
