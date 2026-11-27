@@ -8,6 +8,109 @@ and use conventional-commit prefixes (`feat`, `fix`, `chore`, `ci`, `docs`).
 
 ---
 
+## 2026-11-27: Session 3, one account per tab (issue #3) and an end-to-end suite
+
+**Branch:** `fix/per-tab-sessions` (off `main` after PR #2 was merged)
+**Pairing:** Gabriel + Claude Code (Claude Opus 5.5)
+
+### The bug
+
+Gabriel found that signing in as account B in one tab made every other tab act as B: tab 1
+kept *showing* A until a reload while its requests already ran as B. Reproduced in the browser
+and filed as [#3](https://github.com/Gabriel-Rosengren/party-sheets/issues/3):
+
+- tab 1's header still said "Morgan (DM)" and its socket stayed live as the DM
+- `/auth/me` from tab 1 returned Aria
+- a DM edit from tab 1 failed with 404 and an unexplained "Save failed"
+
+**Root cause:** one session cookie per browser, so the last sign-in won for every tab. The
+client cached the user and only asked the server once; sockets authenticate only at the
+handshake.
+
+Gabriel decided the expected behaviour: being signed in to **different accounts in different
+tabs is supported**, and each tab sticks to its own account.
+
+### Decisions
+
+| Decision | Why |
+| --- | --- |
+| One `httpOnly` cookie per account (`ps_s_<userId>`) plus an `X-Account` header naming the tab's account | Tokens stay unreadable by JS (XSS can't steal them), while each tab can still choose its account. The token's subject must match the cookie's name, so cookies can't be swapped. The custom header also adds CSRF protection on top of SameSite. |
+| The tab's account id lives in `sessionStorage` | It's per tab and survives a reload, which is exactly the lifetime needed. It holds only an id, never a token. |
+| Never pick an account implicitly | A request without `X-Account` is 401, even if the browser has sessions. A new tab adopts the only signed-in account, or asks when there are several. |
+| JWT `jti` per login; sockets join `session:<jti>` | Sign-out closes exactly that login's sockets (`disconnectSockets`), so a stale tab can't keep streaming the old account's data. |
+| Sign-out is per account; at most 4 accounts per browser | Signing out in one tab must not sign out another tab's account. The cap stops cookies piling up. |
+| Pages are keyed by account id | Switching account remounts the page, so no state carries over from one account to another. |
+
+### Stricter test suite
+
+Server tests couldn't have caught #3: each test user had their own cookie jar. Added two
+layers:
+
+- **`server/test/sessions.test.ts`** (10 tests) with a `TestBrowser` helper: one cookie jar
+  shared by several "tabs". Covers the #3 repro, writes acting as the named account, no
+  implicit account, forged cookie names, account listing order, per-account sign-out,
+  re-login, the account cap, per-account sockets, and sign-out closing only that account's
+  sockets.
+- **Playwright end-to-end suite** (`e2e/`, 7 tests). Real Chrome tabs in one browser context
+  (shared cookies) for the per-tab account rules, and separate contexts for DM and player in
+  the realtime flows. Includes a forced 409 (`page.route` holds the DM's save) to check the
+  merge end to end. Runs against the production client build on its own ports and database,
+  with `retries: 0` and `forbidOnly` so flakiness counts as failure. CI runs it as a second
+  job and uploads the report on failure.
+
+### What was built (in commit order)
+
+1. `fix(server): keep each tab on its own account`
+2. `fix(client): remember the account per tab and allow switching`: `tab-account.ts`, header
+   account menu (switch / add / sign out), "Continue as" picker on the sign-in page, session-lost
+   handling for 401s and server-closed sockets.
+3. `test(e2e): add Playwright suite for per-tab accounts and realtime`
+4. `ci: run the end-to-end suite on every pull request`
+5. `docs: log per-tab accounts and the e2e suite`
+6. `ci: give the e2e job a DATABASE_URL for prisma generate`
+7. `test(e2e): wait for the register form before filling it`
+
+### Problems hit and how they were solved
+
+- A Prettier reflow made a scripted edit miss its anchor. The script fails loudly when an anchor
+  is missing, so nothing half-applied. Switched to direct edits.
+- Test emails built from display names with spaces were invalid (400 on register). The helper now
+  slugifies them.
+- `vite dev` refuses a second dev server for the same project while `npm run dev` runs, so E2E
+  uses `vite build` + `vite preview`. That is closer to production anyway.
+- **First CI run of the e2e job failed in `npm ci`:** the `postinstall` `prisma generate` needs
+  `DATABASE_URL`, which only the `verify` job set. Added it to the e2e job.
+- **Second CI run: 6/7 passed, 1 failed.** The test filled Email while the sign-in page was
+  still mounted, right after clicking "Create an account", so the value was lost ("Invalid
+  email address" in the failure snapshot). It was a test race, not an app bug: the registration
+  helper now waits for the register form first. It then passed 21/21 with `--repeat-each=3`
+  locally, and passed in CI. The strict config (`retries: 0`) is what surfaced it instead of
+  hiding it behind a retry.
+- Playwright uses the installed Google Chrome (`channel: 'chrome'`), preinstalled on GitHub's
+  Ubuntu runners too, so there's no separate browser download.
+
+### Verification
+
+- `npm test`: 4 shared + **23 server** tests passing (10 new).
+- `npm run test:e2e`: **7/7 passing** locally (~22 s), and 21/21 with `--repeat-each=3`.
+- CI on [PR #4](https://github.com/Gabriel-Rosengren/party-sheets/pull/4): `verify` and `e2e`
+  both green.
+- Mutation checks: making the server fall back to "most recent sign-in wins" fails 6 server tests
+  and the #3 end-to-end test (`Expected "Bravo", received "Alpha"`).
+- Manual run of the reported steps in the browser: tab 1 stays the DM after tab 2 signs in as
+  Aria, including after a reload. The DM's save from tab 1 returns 200. Signing Aria out in tab 2
+  leaves tab 1 signed in and live, and tab 2 offers "Continue as Morgan (DM)". `document.cookie`
+  is empty.
+
+### Known limitations / next steps
+
+- Existing sessions from before this change (`ps_session` cookie) are no longer accepted, so
+  everyone signs in once more. The old cookie is cleared on the next sign-in.
+- "Duplicate tab" copies `sessionStorage`, so a duplicated tab starts on the same account. That
+  is expected browser behaviour.
+
+---
+
 ## 2026-11-27: Session 2, DM can edit party sheets
 
 **Branch:** `feat/dm-edit-sheets` (off `main` after PR #1 was merged)

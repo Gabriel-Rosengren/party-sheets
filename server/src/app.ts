@@ -24,7 +24,7 @@ export const createApp = ({ realtime }: AppDeps) => {
     res.json({ ok: true });
   });
 
-  app.use('/api/auth', authRouter);
+  app.use('/api/auth', authRouter(realtime));
   app.use('/api/campaigns', campaignsRouter(realtime));
   app.use('/api/sheets', sheetsRouter(realtime));
 

@@ -19,3 +19,7 @@ Thumbs.db
 
 # local Claude Code tooling
 .claude/
+
+# end-to-end test output
+e2e/test-results/
+e2e/playwright-report/

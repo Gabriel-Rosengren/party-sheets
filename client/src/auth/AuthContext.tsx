@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { LoginInput, PublicUser, RegisterInput } from '@party-sheets/shared';
-import { api, ApiRequestError } from '../lib/api';
+import { api, ApiRequestError, setSessionLostHandler } from '../lib/api';
+import { tabAccount } from '../lib/tab-account';
 
 type AuthState =
   | { status: 'loading'; user: null }
@@ -9,45 +10,133 @@ type AuthState =
 
 interface AuthContextValue {
   state: AuthState;
+  /** Every account signed in on this browser, most recent first (this tab's included). */
+  accounts: PublicUser[];
+  refreshAccounts: () => Promise<void>;
   login: (input: LoginInput) => Promise<void>;
   register: (input: RegisterInput) => Promise<void>;
+  /** Signs out this tab's account only; other accounts stay signed in. */
   logout: () => Promise<void>;
+  /** Makes this tab act as another account that is already signed in on this browser. */
+  switchAccount: (user: PublicUser) => Promise<void>;
+  /** Shows the sign-in page in this tab without signing anyone out. */
+  addAccount: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+const is401 = (err: unknown) => err instanceof ApiRequestError && err.status === 401;
+
+/**
+ * Each tab acts as exactly one account (see lib/tab-account.ts), and never switches
+ * account on its own: only this tab's sign-in, sign-out or account switch changes it.
+ */
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AuthState>({ status: 'loading', user: null });
+  const [accounts, setAccounts] = useState<PublicUser[]>([]);
 
-  // The session lives in an httpOnly cookie, so ask the server who we are.
+  const refreshAccounts = useCallback(async () => {
+    try {
+      setAccounts((await api.accounts()).accounts);
+    } catch (err) {
+      console.error(err);
+    }
+  }, []);
+
+  /**
+   * Works out who this tab is. With `pickOnlyAccount`, a tab that hasn't chosen yet (a new
+   * tab) adopts the browser's account if there is exactly one; with several it asks.
+   */
+  const resolve = useCallback(
+    async (pickOnlyAccount: boolean) => {
+      if (tabAccount.get()) {
+        try {
+          const { user } = await api.me();
+          setState({ status: 'authenticated', user });
+          void refreshAccounts();
+          return;
+        } catch (err) {
+          if (!is401(err)) console.error(err);
+          else tabAccount.clear();
+        }
+      }
+      let signedIn: PublicUser[] = [];
+      try {
+        signedIn = (await api.accounts()).accounts;
+      } catch (err) {
+        console.error(err);
+      }
+      setAccounts(signedIn);
+      const [only] = signedIn;
+      if (pickOnlyAccount && only && signedIn.length === 1) {
+        tabAccount.set(only.id);
+        setState({ status: 'authenticated', user: only });
+        return;
+      }
+      setState({ status: 'anonymous', user: null });
+    },
+    [refreshAccounts],
+  );
+
   useEffect(() => {
-    api
-      .me()
-      .then(({ user }) => setState({ status: 'authenticated', user }))
-      .catch((err: unknown) => {
-        if (!(err instanceof ApiRequestError && err.status === 401)) console.error(err);
-        setState({ status: 'anonymous', user: null });
-      });
-  }, []);
+    void resolve(true);
+    // This tab's session ended elsewhere (signed out in another tab, expired): re-check
+    // rather than keep showing an account the server no longer accepts.
+    setSessionLostHandler(() => void resolve(false));
+    return () => setSessionLostHandler(null);
+  }, [resolve]);
 
-  const login = useCallback(async (input: LoginInput) => {
-    const { user } = await api.login(input);
-    setState({ status: 'authenticated', user });
-  }, []);
+  const signedIn = useCallback(
+    (user: PublicUser) => {
+      tabAccount.set(user.id);
+      setState({ status: 'authenticated', user });
+      void refreshAccounts();
+    },
+    [refreshAccounts],
+  );
 
-  const register = useCallback(async (input: RegisterInput) => {
-    const { user } = await api.register(input);
-    setState({ status: 'authenticated', user });
-  }, []);
+  const login = useCallback(
+    async (input: LoginInput) => signedIn((await api.login(input)).user),
+    [signedIn],
+  );
+
+  const register = useCallback(
+    async (input: RegisterInput) => signedIn((await api.register(input)).user),
+    [signedIn],
+  );
 
   const logout = useCallback(async () => {
     await api.logout();
+    tabAccount.clear();
+    await resolve(false);
+  }, [resolve]);
+
+  const switchAccount = useCallback(
+    async (user: PublicUser) => {
+      tabAccount.set(user.id);
+      await resolve(false);
+    },
+    [resolve],
+  );
+
+  const addAccount = useCallback(() => {
+    tabAccount.clear();
     setState({ status: 'anonymous', user: null });
-  }, []);
+    void refreshAccounts();
+  }, [refreshAccounts]);
 
   const value = useMemo(
-    () => ({ state, login, register, logout }),
-    [state, login, register, logout],
+    () => ({
+      state,
+      accounts,
+      refreshAccounts,
+      login,
+      register,
+      logout,
+      switchAccount,
+      addAccount,
+    }),
+    [state, accounts, refreshAccounts, login, register, logout, switchAccount, addAccount],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

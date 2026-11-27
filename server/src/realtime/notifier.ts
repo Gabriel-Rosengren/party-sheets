@@ -7,4 +7,6 @@ import type { Sheet } from '@party-sheets/shared';
 export interface RealtimeNotifier {
   sheetUpdated(sheet: Sheet): void;
   memberJoined(campaignId: string, sheet: Sheet): void;
+  /** A login session was signed out: close every socket that authenticated with it. */
+  sessionEnded(sessionId: string): void;
 }

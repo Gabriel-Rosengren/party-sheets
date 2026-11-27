@@ -6,7 +6,8 @@ import {
   type SocketData,
 } from '@party-sheets/shared';
 import { findMembership } from '../access';
-import { userIdFromCookieHeader } from '../auth/session';
+import { parse as parseCookie } from 'cookie';
+import { sessionForAccount } from '../auth/session';
 import { env } from '../env';
 import type { RealtimeNotifier } from './notifier';
 
@@ -34,11 +35,19 @@ export const createIoServer = (): IoServer =>
 
 /** Wires authentication, campaign rooms and presence onto the Socket.IO server. */
 export const registerSocketHandlers = (io: IoServer): void => {
-  // Same session cookie as the REST API; unauthenticated sockets are rejected outright.
+  // Same rule as the REST API: the handshake names an account (`auth.accountId`) and the
+  // browser must hold a valid session cookie for it. Anything else is rejected outright.
   io.use((socket, next) => {
-    const userId = userIdFromCookieHeader(socket.handshake.headers.cookie);
-    if (!userId) return next(new Error('unauthorized'));
-    socket.data.userId = userId;
+    const auth: unknown = socket.handshake.auth;
+    const accountId =
+      typeof auth === 'object' && auth !== null && 'accountId' in auth ? auth.accountId : null;
+    const session =
+      typeof accountId === 'string'
+        ? sessionForAccount(parseCookie(socket.handshake.headers.cookie ?? ''), accountId)
+        : null;
+    if (!session) return next(new Error('unauthorized'));
+    socket.data.userId = session.userId;
+    socket.data.sessionId = session.sessionId;
     next();
   });
 
@@ -50,7 +59,7 @@ export const registerSocketHandlers = (io: IoServer): void => {
 
   io.on('connection', (socket: IoSocket) => {
     const { userId } = socket.data;
-    void socket.join(rooms.user(userId));
+    void socket.join([rooms.user(userId), rooms.session(socket.data.sessionId)]);
 
     socket.on('campaign:join', async ({ campaignId }, ack) => {
       try {
@@ -99,5 +108,8 @@ export const socketNotifier = (io: IoServer): RealtimeNotifier => ({
   },
   memberJoined(campaignId, sheet) {
     io.to(rooms.campaignDm(campaignId)).emit('member:joined', { campaignId, sheet });
+  },
+  sessionEnded(sessionId) {
+    io.in(rooms.session(sessionId)).disconnectSockets(true);
   },
 });
