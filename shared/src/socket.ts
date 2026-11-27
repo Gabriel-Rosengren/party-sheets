@@ -28,8 +28,15 @@ export interface ServerToClientEvents {
   'member:joined': (payload: { campaignId: string; sheet: Sheet }) => void;
 }
 
+/** Sent in the Socket.IO handshake: which of the browser's signed-in accounts to use. */
+export interface SocketAuth {
+  accountId: string;
+}
+
 export interface SocketData {
   userId: string;
+  /** The JWT id of the session this socket authenticated with. */
+  sessionId: string;
 }
 
 export const rooms = {
@@ -39,4 +46,6 @@ export const rooms = {
   campaignDm: (campaignId: string) => `campaign:${campaignId}:dm`,
   /** All of one user's connections (e.g. two tabs) — receives their own sheets. */
   user: (userId: string) => `user:${userId}`,
+  /** Every connection opened with one login session, so sign-out can close them all. */
+  session: (sessionId: string) => `session:${sessionId}`,
 };

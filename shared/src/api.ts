@@ -42,6 +42,15 @@ export const updateSheetSchema = z.object({
 });
 export type UpdateSheetInput = z.input<typeof updateSheetSchema>;
 
+// ---------- Accounts ----------
+
+/**
+ * Several accounts can be signed in on one browser at once (one per tab). Each request
+ * names the account it acts as in this header; the server only honours it if the browser
+ * also holds a valid session cookie for that account.
+ */
+export const ACCOUNT_HEADER = 'X-Account';
+
 // ---------- Response shapes ----------
 
 export type Role = 'DM' | 'PLAYER';

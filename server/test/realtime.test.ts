@@ -26,11 +26,12 @@ afterAll(async () => {
   await io.close();
 });
 
-const connect = (cookie?: string) =>
+const connect = (cookie?: string, accountId?: string) =>
   new Promise<ClientSocket>((resolve, reject) => {
     const socket: ClientSocket = ioClient(url, {
       transports: ['websocket'],
       extraHeaders: cookie ? { cookie } : {},
+      auth: accountId ? { accountId } : {},
       reconnection: false,
     });
     sockets.push(socket);
@@ -54,7 +55,10 @@ const nextEvent = <E extends keyof ServerToClientEvents>(socket: ClientSocket, e
 describe('realtime sheet sharing', () => {
   it('rejects sockets without a valid session', async () => {
     await expect(connect()).rejects.toThrow('unauthorized');
-    await expect(connect('ps_session=garbage')).rejects.toThrow('unauthorized');
+    await expect(connect('ps_s_someone=garbage', 'someone')).rejects.toThrow('unauthorized');
+    // A valid cookie, but the handshake doesn't say which account it's for.
+    const real = await registerUser(app, 'Nameless');
+    await expect(connect(real.cookie)).rejects.toThrow('unauthorized');
   });
 
   it('streams a player sheet update to the DM but not to other players', async () => {
@@ -64,7 +68,7 @@ describe('realtime sheet sharing', () => {
     const outsider = await registerUser(app, 'Spy');
     const campaign = await createCampaign(dm.agent);
 
-    const dmSocket = await connect(dm.cookie);
+    const dmSocket = await connect(dm.cookie, dm.user.id);
     await joinRoom(dmSocket, campaign.id);
 
     // The DM is told about new members as they join.
@@ -73,11 +77,11 @@ describe('realtime sheet sharing', () => {
     expect((await joined).sheet.ownerName).toBe('Rogue');
     await p2.agent.post('/api/campaigns/join').send({ inviteCode: campaign.inviteCode });
 
-    const p2Socket = await connect(p2.cookie);
+    const p2Socket = await connect(p2.cookie, p2.user.id);
     await joinRoom(p2Socket, campaign.id);
 
     // Non-members can't subscribe to the campaign.
-    const outsiderSocket = await connect(outsider.cookie);
+    const outsiderSocket = await connect(outsider.cookie, outsider.user.id);
     await expect(joinRoom(outsiderSocket, campaign.id)).rejects.toThrow('Campaign not found');
 
     const leaked: Sheet[] = [];
@@ -111,7 +115,7 @@ describe('realtime sheet sharing', () => {
     const campaign = await createCampaign(dm.agent);
     await player.agent.post('/api/campaigns/join').send({ inviteCode: campaign.inviteCode });
 
-    const playerSocket = await connect(player.cookie);
+    const playerSocket = await connect(player.cookie, player.user.id);
     await joinRoom(playerSocket, campaign.id);
 
     const sheets = await dm.agent.get(`/api/campaigns/${campaign.id}/sheets`);
@@ -136,11 +140,11 @@ describe('realtime sheet sharing', () => {
     const campaign = await createCampaign(dm.agent);
     await p1.agent.post('/api/campaigns/join').send({ inviteCode: campaign.inviteCode });
 
-    const dmSocket = await connect(dm.cookie);
+    const dmSocket = await connect(dm.cookie, dm.user.id);
     await joinRoom(dmSocket, campaign.id);
 
     const online = nextEvent(dmSocket, 'presence:update');
-    const p1Socket = await connect(p1.cookie);
+    const p1Socket = await connect(p1.cookie, p1.user.id);
     await joinRoom(p1Socket, campaign.id);
     expect((await online).online.sort()).toEqual([dm.user.id, p1.user.id].sort());
 

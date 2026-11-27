@@ -1,17 +1,25 @@
 import type { RequestHandler } from 'express';
+import { ACCOUNT_HEADER } from '@party-sheets/shared';
 import { unauthorized } from '../lib/http-error';
-import { SESSION_COOKIE, verifySession } from './session';
+import { sessionForAccount } from './session';
 
 declare module 'express-serve-static-core' {
   interface Request {
     userId?: string;
+    sessionId?: string;
   }
 }
 
+/**
+ * Requires the account named in the X-Account header to be signed in on this browser.
+ * Acting as an account is never implicit: a tab that doesn't say who it is gets 401, even
+ * if the browser holds sessions for other accounts.
+ */
 export const requireAuth: RequestHandler = (req, _res, next) => {
-  const userId = verifySession(req.cookies?.[SESSION_COOKIE]);
-  if (!userId) return next(unauthorized());
-  req.userId = userId;
+  const session = sessionForAccount(req.cookies ?? {}, req.get(ACCOUNT_HEADER));
+  if (!session) return next(unauthorized());
+  req.userId = session.userId;
+  req.sessionId = session.sessionId;
   next();
 };
 
