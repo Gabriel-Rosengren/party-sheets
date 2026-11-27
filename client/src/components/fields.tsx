@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from 'react';
+import { SHEET_LIMITS } from '@party-sheets/shared';
 
 interface BaseProps {
   label: string;
@@ -12,7 +13,7 @@ export function TextField({
   onChange,
   readOnly,
   className = '',
-  maxLength = 80,
+  maxLength = SHEET_LIMITS.shortTextLength,
   placeholder,
 }: BaseProps & {
   value: string;
@@ -123,7 +124,7 @@ export function TextAreaField({
           id={id}
           className="input resize-y text-sm"
           rows={rows}
-          maxLength={10_000}
+          maxLength={SHEET_LIMITS.longTextLength}
           value={value}
           onChange={(e) => onChange?.(e.target.value)}
         />

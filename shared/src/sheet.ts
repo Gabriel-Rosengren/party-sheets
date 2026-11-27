@@ -12,9 +12,33 @@ export const ABILITY_LABELS: Record<Ability, string> = {
   cha: 'Charisma',
 };
 
-const score = z.number().int().min(1).max(30);
-const shortText = z.string().max(80);
-const longText = z.string().max(10_000);
+export interface IntRange {
+  min: number;
+  max: number;
+}
+
+/**
+ * Allowed values for sheet fields. The schema below validates against these, and the
+ * editor's inputs use the same numbers, so the two can't drift apart.
+ */
+export const SHEET_LIMITS = {
+  shortTextLength: 80,
+  longTextLength: 10_000,
+  maxConditions: 20,
+  level: { min: 1, max: 20 },
+  experience: { min: 0, max: 1_000_000 },
+  abilityScore: { min: 1, max: 30 },
+  currentHp: { min: -999, max: 9999 },
+  maxHp: { min: 0, max: 9999 },
+  tempHp: { min: 0, max: 9999 },
+  armorClass: { min: 0, max: 50 },
+  speed: { min: 0, max: 500 },
+} as const satisfies Record<string, number | IntRange>;
+
+const int = ({ min, max }: IntRange) => z.number().int().min(min).max(max);
+const abilityScore = int(SHEET_LIMITS.abilityScore);
+const shortText = z.string().max(SHEET_LIMITS.shortTextLength);
+const longText = z.string().max(SHEET_LIMITS.longTextLength);
 
 /**
  * The editable contents of a character sheet. Stored as JSON on the Sheet row so the
@@ -24,31 +48,31 @@ const longText = z.string().max(10_000);
 export const sheetDataSchema = z.object({
   characterName: shortText.default(''),
   className: shortText.default(''),
-  level: z.number().int().min(1).max(20).default(1),
+  level: int(SHEET_LIMITS.level).default(1),
   race: shortText.default(''),
   background: shortText.default(''),
   alignment: shortText.default(''),
-  experience: z.number().int().min(0).max(1_000_000).default(0),
+  experience: int(SHEET_LIMITS.experience).default(0),
   abilities: z
     .object({
-      str: score.default(10),
-      dex: score.default(10),
-      con: score.default(10),
-      int: score.default(10),
-      wis: score.default(10),
-      cha: score.default(10),
+      str: abilityScore.default(10),
+      dex: abilityScore.default(10),
+      con: abilityScore.default(10),
+      int: abilityScore.default(10),
+      wis: abilityScore.default(10),
+      cha: abilityScore.default(10),
     })
     .prefault({}),
   hp: z
     .object({
-      current: z.number().int().min(-999).max(9999).default(10),
-      max: z.number().int().min(0).max(9999).default(10),
-      temp: z.number().int().min(0).max(9999).default(0),
+      current: int(SHEET_LIMITS.currentHp).default(10),
+      max: int(SHEET_LIMITS.maxHp).default(10),
+      temp: int(SHEET_LIMITS.tempHp).default(0),
     })
     .prefault({}),
-  armorClass: z.number().int().min(0).max(50).default(10),
-  speed: z.number().int().min(0).max(500).default(30),
-  conditions: z.array(shortText).max(20).default([]),
+  armorClass: int(SHEET_LIMITS.armorClass).default(10),
+  speed: int(SHEET_LIMITS.speed).default(30),
+  conditions: z.array(shortText).max(SHEET_LIMITS.maxConditions).default([]),
   inventory: longText.default(''),
   notes: longText.default(''),
 });

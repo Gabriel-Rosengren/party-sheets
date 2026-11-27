@@ -2,6 +2,7 @@ import {
   ABILITIES,
   ABILITY_LABELS,
   CONDITIONS,
+  SHEET_LIMITS,
   abilityModifier,
   formatModifier,
   proficiencyBonus,
@@ -73,8 +74,7 @@ export function SheetEditor({ data, onChange }: Props) {
           <NumberField
             label="Level"
             value={data.level}
-            min={1}
-            max={20}
+            {...SHEET_LIMITS.level}
             onChange={(v) => set('level', v)}
             readOnly={readOnly}
           />
@@ -102,8 +102,7 @@ export function SheetEditor({ data, onChange }: Props) {
           <NumberField
             label="Experience"
             value={data.experience}
-            min={0}
-            max={1_000_000}
+            {...SHEET_LIMITS.experience}
             onChange={(v) => set('experience', v)}
             readOnly={readOnly}
           />
@@ -119,8 +118,7 @@ export function SheetEditor({ data, onChange }: Props) {
                 <NumberField
                   label={ABILITY_LABELS[ability]}
                   value={score}
-                  min={1}
-                  max={30}
+                  {...SHEET_LIMITS.abilityScore}
                   readOnly={readOnly}
                   inputClassName="text-center text-lg"
                   onChange={(v) => set('abilities', { ...data.abilities, [ability]: v })}
@@ -145,22 +143,19 @@ export function SheetEditor({ data, onChange }: Props) {
               <NumberField
                 label="Current"
                 value={data.hp.current}
-                min={-999}
-                max={9999}
+                {...SHEET_LIMITS.currentHp}
                 onChange={(v) => set('hp', { ...data.hp, current: v })}
               />
               <NumberField
                 label="Max"
                 value={data.hp.max}
-                min={0}
-                max={9999}
+                {...SHEET_LIMITS.maxHp}
                 onChange={(v) => set('hp', { ...data.hp, max: v })}
               />
               <NumberField
                 label="Temp"
                 value={data.hp.temp}
-                min={0}
-                max={9999}
+                {...SHEET_LIMITS.tempHp}
                 onChange={(v) => set('hp', { ...data.hp, temp: v })}
               />
             </div>
@@ -176,15 +171,13 @@ export function SheetEditor({ data, onChange }: Props) {
                 <NumberField
                   label="Armor class"
                   value={data.armorClass}
-                  min={0}
-                  max={50}
+                  {...SHEET_LIMITS.armorClass}
                   onChange={(v) => set('armorClass', v)}
                 />
                 <NumberField
                   label="Speed (ft)"
                   value={data.speed}
-                  min={0}
-                  max={500}
+                  {...SHEET_LIMITS.speed}
                   onChange={(v) => set('speed', v)}
                 />
               </>
