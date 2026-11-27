@@ -2,7 +2,7 @@ import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { emptySheetData } from '@party-sheets/shared';
 import { createServer } from '../src/server';
-import { PASSWORD, createCampaign, joinCampaign, registerUser } from './helpers';
+import { PASSWORD, createCampaign, joinCampaign, registerUser, uniqueEmail } from './helpers';
 
 const { app } = createServer();
 
@@ -34,6 +34,18 @@ describe('auth', () => {
       .post('/api/auth/register')
       .send({ email, displayName: 'Bram again', password: 'another password' })
       .expect(409);
+  });
+
+  it('answers simultaneous sign-ups with the same email with one 201 and 409s', async () => {
+    const email = uniqueEmail('Twin');
+    const attempts = await Promise.all(
+      Array.from({ length: 4 }, () =>
+        request(app)
+          .post('/api/auth/register')
+          .send({ email, displayName: 'Twin', password: PASSWORD }),
+      ),
+    );
+    expect(attempts.map((r) => r.status).sort()).toEqual([201, 409, 409, 409]);
   });
 
   it('returns field-level validation errors', async () => {
@@ -173,6 +185,24 @@ describe('campaigns and sheets', () => {
     expect(res.body.campaigns).toEqual([
       expect.objectContaining({ name: 'Curse of Strahd', role: 'DM', memberCount: 1 }),
     ]);
+  });
+
+  it('treats simultaneous joins by one player as one join', async () => {
+    const dm = await registerUser(app, 'Gatekeeper');
+    const player = await registerUser(app, 'Eager');
+    const campaign = await createCampaign(dm.agent);
+
+    // Like a double-click on "Join campaign".
+    const attempts = await Promise.all(
+      Array.from({ length: 4 }, () =>
+        player.agent.post('/api/campaigns/join').send({ inviteCode: campaign.inviteCode }),
+      ),
+    );
+    expect(attempts.map((r) => r.status).sort()).toEqual([200, 200, 200, 201]);
+    expect(attempts.every((r) => r.body.campaign?.id === campaign.id)).toBe(true);
+
+    const sheets = await dm.agent.get(`/api/campaigns/${campaign.id}/sheets`).expect(200);
+    expect(sheets.body.sheets).toHaveLength(1);
   });
 
   it('404s on an unknown invite code', async () => {
