@@ -3,13 +3,15 @@ import { Link, Navigate, Outlet, useLocation, useNavigate } from 'react-router';
 import type { PublicUser } from '@party-sheets/shared';
 import { useAuth } from '../auth/AuthContext';
 
+const MENU_ITEM = 'block w-full rounded-md px-2 py-1.5 text-left text-stone-200 hover:bg-stone-800';
+
 /** Account name plus a menu to switch to another signed-in account, add one or sign out. */
 function AccountMenu({ user }: { user: PublicUser }) {
   const { accounts, refreshAccounts, switchAccount, addAccount, logout } = useAuth();
   const navigate = useNavigate();
   const menu = useRef<HTMLDetailsElement>(null);
-  const others = accounts.filter((a) => a.id !== user.id);
-  const close = () => menu.current?.removeAttribute('open');
+  const otherAccounts = accounts.filter((a) => a.id !== user.id);
+  const closeMenu = () => menu.current?.removeAttribute('open');
 
   return (
     <details
@@ -22,13 +24,13 @@ function AccountMenu({ user }: { user: PublicUser }) {
       </summary>
       <div className="card absolute right-0 z-10 mt-2 w-64 p-2 text-sm shadow-xl">
         <p className="truncate px-2 py-1 text-xs text-stone-500">Signed in as {user.email}</p>
-        {others.map((other) => (
+        {otherAccounts.map((other) => (
           <button
             key={other.id}
             type="button"
-            className="block w-full rounded-md px-2 py-1.5 text-left text-stone-200 hover:bg-stone-800"
+            className={MENU_ITEM}
             onClick={() => {
-              close();
+              closeMenu();
               void switchAccount(other).then(() => navigate('/'));
             }}
           >
@@ -37,9 +39,9 @@ function AccountMenu({ user }: { user: PublicUser }) {
         ))}
         <button
           type="button"
-          className="block w-full rounded-md px-2 py-1.5 text-left text-stone-200 hover:bg-stone-800"
+          className={MENU_ITEM}
           onClick={() => {
-            close();
+            closeMenu();
             addAccount();
           }}
         >
@@ -47,9 +49,9 @@ function AccountMenu({ user }: { user: PublicUser }) {
         </button>
         <button
           type="button"
-          className="block w-full rounded-md px-2 py-1.5 text-left text-stone-200 hover:bg-stone-800"
+          className={MENU_ITEM}
           onClick={() => {
-            close();
+            closeMenu();
             void logout();
           }}
         >

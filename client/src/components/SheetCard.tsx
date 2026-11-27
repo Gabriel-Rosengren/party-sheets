@@ -12,12 +12,12 @@ interface Props {
 /** Compact live summary of one player's sheet on the DM's party board. */
 export function SheetCard({ sheet, online, selected, onSelect }: Props) {
   const { data } = sheet;
+  // Pulse the card whenever a newer version arrives over the socket. Changing the key
+  // remounts the button, which restarts the CSS 'flash' animation.
   const [flashKey, setFlashKey] = useState(0);
-  const firstVersion = useRef(sheet.version);
-
-  // Pulse the card whenever a newer version arrives over the socket.
+  const initialVersion = useRef(sheet.version);
   useEffect(() => {
-    if (sheet.version !== firstVersion.current) setFlashKey((k) => k + 1);
+    if (sheet.version !== initialVersion.current) setFlashKey((k) => k + 1);
   }, [sheet.version]);
 
   const subtitle = [data.race, data.className && `${data.className} ${data.level}`]

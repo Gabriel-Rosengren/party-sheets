@@ -32,6 +32,11 @@ export function useCampaignSocket(campaignId: string, handlers: Handlers) {
     const socket: CampaignSocket = io({ withCredentials: true, auth });
     let hasConnectedBefore = false;
 
+    const sessionLost = () => {
+      setStatus('error');
+      notifySessionLost();
+    };
+
     socket.on('connect', () => {
       socket.emit('campaign:join', { campaignId }, (res) => {
         if (!res.ok) {
@@ -45,25 +50,18 @@ export function useCampaignSocket(campaignId: string, handlers: Handlers) {
     });
     socket.on('disconnect', (reason) => {
       // The server only closes a socket itself when its session was signed out.
-      if (reason === 'io server disconnect') {
-        setStatus('error');
-        notifySessionLost();
-      } else {
-        setStatus('reconnecting');
-      }
+      if (reason === 'io server disconnect') sessionLost();
+      else setStatus('reconnecting');
     });
     socket.on('connect_error', (err) => {
-      if (err.message === 'unauthorized') {
-        setStatus('error');
-        notifySessionLost();
-      } else {
-        setStatus('reconnecting');
-      }
+      // The server rejects the handshake with 'unauthorized' when the session is gone.
+      if (err.message === 'unauthorized') sessionLost();
+      else setStatus('reconnecting');
     });
 
     socket.on('sheet:updated', (sheet) => handlersRef.current['sheet:updated']?.(sheet));
-    socket.on('member:joined', (p) => handlersRef.current['member:joined']?.(p));
-    socket.on('presence:update', (p) => handlersRef.current['presence:update']?.(p));
+    socket.on('member:joined', (joined) => handlersRef.current['member:joined']?.(joined));
+    socket.on('presence:update', (presence) => handlersRef.current['presence:update']?.(presence));
 
     return () => {
       socket.emit('campaign:leave', { campaignId });

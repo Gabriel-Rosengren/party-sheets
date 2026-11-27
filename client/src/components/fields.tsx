@@ -3,7 +3,6 @@ import { SHEET_LIMITS } from '@party-sheets/shared';
 
 interface BaseProps {
   label: string;
-  readOnly?: boolean;
   className?: string;
 }
 
@@ -11,13 +10,12 @@ export function TextField({
   label,
   value,
   onChange,
-  readOnly,
   className = '',
   maxLength = SHEET_LIMITS.shortTextLength,
   placeholder,
 }: BaseProps & {
   value: string;
-  onChange?: (value: string) => void;
+  onChange: (value: string) => void;
   maxLength?: number;
   placeholder?: string;
 }) {
@@ -32,13 +30,19 @@ export function TextField({
         className="input"
         value={value}
         maxLength={maxLength}
-        placeholder={readOnly ? '—' : placeholder}
-        disabled={readOnly}
-        onChange={(e) => onChange?.(e.target.value)}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
       />
     </div>
   );
 }
+
+/** The whole number `text` spells, if it is one between min and max; otherwise null. */
+const parseIntInRange = (text: string, min: number, max: number): number | null => {
+  if (text.trim() === '') return null;
+  const n = Number(text);
+  return Number.isInteger(n) && n >= min && n <= max ? n : null;
+};
 
 /**
  * Integer input that lets the user type freely (including an empty box or a lone "-")
@@ -48,19 +52,19 @@ export function NumberField({
   label,
   value,
   onChange,
-  readOnly,
   min,
   max,
   className = '',
   inputClassName = '',
 }: BaseProps & {
   value: number;
-  onChange?: (value: number) => void;
+  onChange: (value: number) => void;
   min: number;
   max: number;
   inputClassName?: string;
 }) {
   const id = useId();
+  // What's in the box, which may be mid-edit and not a valid number yet.
   const [text, setText] = useState(String(value));
   const [focused, setFocused] = useState(false);
 
@@ -69,8 +73,7 @@ export function NumberField({
     if (!focused) setText(String(value));
   }, [value, focused]);
 
-  const parsed = Number(text);
-  const invalid = text.trim() === '' || !Number.isInteger(parsed) || parsed < min || parsed > max;
+  const invalid = parseIntInRange(text, min, max) === null;
 
   return (
     <div className={className}>
@@ -80,21 +83,20 @@ export function NumberField({
       <input
         id={id}
         inputMode="numeric"
-        className={`input tabular-nums ${invalid && !readOnly ? 'border-red-500 focus:border-red-500' : ''} ${inputClassName}`}
-        value={readOnly ? String(value) : text}
-        disabled={readOnly}
+        className={`input tabular-nums ${invalid ? 'border-red-500 focus:border-red-500' : ''} ${inputClassName}`}
+        value={text}
         aria-invalid={invalid}
         title={invalid ? `Whole number from ${min} to ${max}` : undefined}
         onFocus={() => setFocused(true)}
         onBlur={() => {
+          // Leaving the box drops any invalid text and shows the last valid value again.
           setFocused(false);
           setText(String(value));
         }}
         onChange={(e) => {
-          const next = e.target.value;
-          setText(next);
-          const n = Number(next);
-          if (next.trim() !== '' && Number.isInteger(n) && n >= min && n <= max) onChange?.(n);
+          setText(e.target.value);
+          const next = parseIntInRange(e.target.value, min, max);
+          if (next !== null) onChange(next);
         }}
       />
     </div>
@@ -105,30 +107,23 @@ export function TextAreaField({
   label,
   value,
   onChange,
-  readOnly,
   className = '',
   rows = 6,
-}: BaseProps & { value: string; onChange?: (value: string) => void; rows?: number }) {
+}: BaseProps & { value: string; onChange: (value: string) => void; rows?: number }) {
   const id = useId();
   return (
     <div className={className}>
       <label htmlFor={id} className="label">
         {label}
       </label>
-      {readOnly ? (
-        <p id={id} className="min-h-10 text-sm whitespace-pre-wrap text-stone-300">
-          {value || <span className="text-stone-500">—</span>}
-        </p>
-      ) : (
-        <textarea
-          id={id}
-          className="input resize-y text-sm"
-          rows={rows}
-          maxLength={SHEET_LIMITS.longTextLength}
-          value={value}
-          onChange={(e) => onChange?.(e.target.value)}
-        />
-      )}
+      <textarea
+        id={id}
+        className="input resize-y text-sm"
+        rows={rows}
+        maxLength={SHEET_LIMITS.longTextLength}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
     </div>
   );
 }

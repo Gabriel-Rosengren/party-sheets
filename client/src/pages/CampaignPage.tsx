@@ -7,15 +7,19 @@ import { FullPageSpinner } from '../components/Layout';
 import { DmView } from './DmView';
 import { PlayerView } from './PlayerView';
 
-const STATUS_LABEL: Record<ConnectionStatus, { text: string; dot: string }> = {
+/** The live/offline badge next to the campaign name. */
+const CONNECTION_BADGE: Record<ConnectionStatus, { text: string; dot: string }> = {
   connecting: { text: 'Connecting…', dot: 'bg-stone-500' },
   live: { text: 'Live', dot: 'bg-emerald-400 animate-pulse' },
   reconnecting: { text: 'Reconnecting…', dot: 'bg-amber-400' },
   error: { text: 'Realtime unavailable', dot: 'bg-red-500' },
 };
 
-/** Keeps whichever copy of a sheet is newest; socket events can race REST responses. */
-export const mergeSheet = (sheets: Sheet[], incoming: Sheet): Sheet[] => {
+/**
+ * Adds or replaces a sheet in the list, keeping whichever copy is newer. Socket events can
+ * arrive before or after a REST response with the same sheet, so order can't be trusted.
+ */
+const upsertNewer = (sheets: Sheet[], incoming: Sheet): Sheet[] => {
   const idx = sheets.findIndex((s) => s.id === incoming.id);
   if (idx === -1) return [...sheets, incoming];
   if ((sheets[idx]?.version ?? 0) >= incoming.version) return sheets;
@@ -31,12 +35,12 @@ export function CampaignPage() {
 
   const load = useCallback(async () => {
     try {
-      const [c, s] = await Promise.all([
+      const [detail, list] = await Promise.all([
         api.getCampaign(campaignId),
         api.getCampaignSheets(campaignId),
       ]);
-      setCampaign(c.campaign);
-      setSheets((prev) => s.sheets.reduce(mergeSheet, prev ?? []));
+      setCampaign(detail.campaign);
+      setSheets((prev) => list.sheets.reduce(upsertNewer, prev ?? []));
     } catch (err) {
       setError(
         err instanceof ApiRequestError && err.status === 404
@@ -51,11 +55,11 @@ export function CampaignPage() {
   }, [load]);
 
   const status = useCampaignSocket(campaignId, {
-    'sheet:updated': (sheet) => setSheets((prev) => (prev ? mergeSheet(prev, sheet) : prev)),
+    'sheet:updated': (sheet) => setSheets((prev) => (prev ? upsertNewer(prev, sheet) : prev)),
     'member:joined': ({ sheet }) => {
-      setSheets((prev) => (prev ? mergeSheet(prev, sheet) : prev));
+      setSheets((prev) => (prev ? upsertNewer(prev, sheet) : prev));
       // Refresh the member list (cheap, and keeps the roster authoritative).
-      void api.getCampaign(campaignId).then((c) => setCampaign(c.campaign));
+      void api.getCampaign(campaignId).then(({ campaign }) => setCampaign(campaign));
     },
     'presence:update': ({ online }) => setOnline(online),
     onResync: () => void load(),
@@ -73,7 +77,7 @@ export function CampaignPage() {
   }
   if (!campaign || !sheets) return <FullPageSpinner />;
 
-  const live = STATUS_LABEL[status];
+  const badge = CONNECTION_BADGE[status];
 
   return (
     <div className="space-y-6">
@@ -91,8 +95,8 @@ export function CampaignPage() {
           className="inline-flex items-center gap-2 rounded-full border border-stone-800 px-3 py-1 text-xs text-stone-300"
           role="status"
         >
-          <span className={`size-2 rounded-full ${live.dot}`} aria-hidden />
-          {live.text}
+          <span className={`size-2 rounded-full ${badge.dot}`} aria-hidden />
+          {badge.text}
         </span>
       </div>
 
