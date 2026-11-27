@@ -79,8 +79,8 @@ export const authRouter = (realtime: RealtimeNotifier) => {
     const input = loginSchema.parse(req.body);
 
     const user = await prisma.user.findUnique({ where: { email: input.email } });
-    const ok = await bcrypt.compare(input.password, user?.passwordHash ?? DUMMY_HASH);
-    if (!user || !ok) throw unauthorized('Invalid email or password');
+    const passwordMatches = await bcrypt.compare(input.password, user?.passwordHash ?? DUMMY_HASH);
+    if (!user || !passwordMatches) throw unauthorized('Invalid email or password');
 
     startSession(req, res, user.id);
     res.json({ user: toPublicUser(user) });
@@ -105,9 +105,10 @@ export const authRouter = (realtime: RealtimeNotifier) => {
     const users = await prisma.user.findMany({
       where: { id: { in: sessions.map((s) => s.userId) } },
     });
-    const byId = new Map(users.map((u) => [u.id, u]));
+    // Keep the sessions' order (most recent first); skip users that were deleted.
+    const usersById = new Map(users.map((u) => [u.id, u]));
     const accounts = sessions.flatMap((s) => {
-      const user = byId.get(s.userId);
+      const user = usersById.get(s.userId);
       return user ? [toPublicUser(user)] : [];
     });
     res.json({ accounts });

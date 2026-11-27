@@ -9,7 +9,7 @@ import { env, isProd } from '../env';
  * the account it acts as (the X-Account header, or `auth.accountId` on the socket).
  */
 const COOKIE_PREFIX = 'ps_s_';
-/** Cookie name used before per-account sessions; cleared when it's seen. */
+/** Cookie name used before per-account sessions; no longer accepted, cleared on sign-in. */
 export const LEGACY_SESSION_COOKIE = 'ps_session';
 /** Oldest sessions are signed out beyond this many accounts per browser. */
 export const MAX_ACCOUNTS_PER_BROWSER = 4;
@@ -25,9 +25,9 @@ export const sessionCookieOptions: CookieOptions = {
   maxAge: SESSION_TTL_SECONDS * 1000,
 };
 
-const { maxAge: _maxAge, ...clearOptions } = sessionCookieOptions;
-/** Options for res.clearCookie (must match path/flags, without maxAge). */
-export const clearSessionCookieOptions: CookieOptions = clearOptions;
+const { maxAge: _maxAge, ...optionsWithoutMaxAge } = sessionCookieOptions;
+/** Options for res.clearCookie: the same path and flags, minus maxAge. */
+export const clearSessionCookieOptions: CookieOptions = optionsWithoutMaxAge;
 
 export interface Session {
   userId: string;
@@ -48,11 +48,15 @@ export const signSession = (userId: string): string =>
 export const verifySession = (token: string | undefined): Session | null => {
   if (!token) return null;
   try {
-    const p = jwt.verify(token, env.JWT_SECRET);
-    if (typeof p !== 'object' || typeof p.sub !== 'string' || typeof p.jti !== 'string') {
+    const claims = jwt.verify(token, env.JWT_SECRET);
+    if (
+      typeof claims !== 'object' ||
+      typeof claims.sub !== 'string' ||
+      typeof claims.jti !== 'string'
+    ) {
       return null;
     }
-    return { userId: p.sub, sessionId: p.jti, issuedAt: p.iat ?? 0 };
+    return { userId: claims.sub, sessionId: claims.jti, issuedAt: claims.iat ?? 0 };
   } catch {
     return null;
   }
