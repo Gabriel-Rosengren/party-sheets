@@ -8,6 +8,53 @@ and use conventional-commit prefixes (`feat`, `fix`, `chore`, `ci`, `docs`).
 
 ---
 
+## 2026-11-27: Session 5, duplicate sign-up race
+
+**Branch:** `fix/duplicate-signup-race` (off `main` after PR #5 was merged)
+**Pairing:** Gabriel + Claude Code (Claude Opus 5.5)
+
+### The bug
+
+Registering checked "is this email taken?" and then created the user. Two sign-ups with one
+email at the same moment could both pass the check. The second write then hit the unique
+constraint, and the API answered 500 instead of 409. Reproduced with a test: four simultaneous
+sign-ups got `[201, 500, 500, 500]`.
+
+Joining a campaign has the same check-then-write shape. On SQLite it doesn't race, because the
+adapter makes other queries wait for the join's transaction, so a test of four simultaneous
+joins already passed. With Postgres, where requests run side by side, it would race. It's
+handled the same way now, so the planned Postgres move doesn't bring the bug back.
+
+### Fix
+
+- `isUniqueViolation` (`lib/db-errors.ts`) recognises Prisma's P2002. It also replaces the
+  inline check in the invite-code retry loop.
+- Register keeps its early check, which skips the password hash when the email is taken, and
+  turns a P2002 on create into the same 409.
+- Join moved into `addPlayer`, which returns null for "already a member", including when a
+  simultaneous join got in first. The route answers that with the usual 200 `alreadyMember`.
+
+### Verification
+
+- New tests: simultaneous sign-ups give one 201 and 409s. Simultaneous joins give one 201,
+  200s and exactly one sheet. The sign-up test failed before the fix. Both passed 5 runs in a
+  row.
+- 4 shared + 27 server tests, typecheck, Prettier and build all pass. E2E passes 5 times over
+  (35/35).
+- Against the running dev API, four simultaneous `curl` sign-ups got 201, 409, 409, 409. In the
+  app, signing up with a taken email shows "An account with that email already exists".
+
+### Found on the way (not fixed here, its own branch next)
+
+- Gabriel's Vite dev server (running since before this session) had stopped forwarding `/api`
+  to the API, and answered with the app's HTML instead. A fresh Vite with the same config works,
+  so restarting `npm run dev` fixes it.
+- That exposed a client bug that is already on `main`. `request()` turns a 2xx response that
+  isn't JSON into `{}`, `AuthContext` then crashes ("browserAccounts is not iterable"), and the
+  page spins forever. It should be treated as an error instead.
+
+---
+
 ## 2026-11-27: Session 4, code review: readability, redundancy and one crash
 
 **Branch:** `refactor/code-review` (off `main` after PR #4 was merged)
