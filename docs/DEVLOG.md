@@ -8,6 +8,38 @@ and use conventional-commit prefixes (`feat`, `fix`, `chore`, `ci`, `docs`).
 
 ---
 
+## 2026-11-27: Session 6, non-JSON API responses
+
+**Branch:** `fix/non-json-response` (off `main`, independent of PR #6)
+**Pairing:** Gabriel + Claude Code (Claude Opus 5.5)
+
+### The bug
+
+Found while checking the sign-up race fix (session 5): Gabriel's Vite dev server had stopped
+forwarding `/api`, and answered those requests with the app's HTML page. The client's
+`request()` turned a body that wasn't JSON into `{}`. With a 200 status, callers got an empty
+object, `AuthContext` crashed on `browserAccounts is not iterable`, and the page showed the
+loading spinner forever. Error statuses showed the bare status text ("Not Found").
+
+### Fix
+
+Any response that isn't JSON is now an error, "Unexpected response from the server", whatever
+its status. The app falls back to the sign-in page, and the form shows that message.
+
+### Verification
+
+- New e2e tests (`server-errors.spec.ts`) use `page.route` to stand in for the broken proxy:
+  - HTML with 200 for every API call: sign-in shows, no spinner. This failed before the fix
+    (stuck on the spinner).
+  - HTML 404 for the sign-in POST: the form shows the new message. Mutation check: bringing
+    back the status-text message fails it.
+- 4 shared + 25 server tests, typecheck, Prettier and build pass. E2E passes 5 times over (45/45).
+- Against Gabriel's still-broken Vite: the app now shows sign-in instead of the spinner, and
+  signing in shows "Unexpected response from the server". Restarting `npm run dev` fixes the
+  proxy itself.
+
+---
+
 ## 2026-11-27: Session 4, code review: readability, redundancy and one crash
 
 **Branch:** `refactor/code-review` (off `main` after PR #4 was merged)
