@@ -85,6 +85,17 @@ so it was fixed here.
 - Existing sign-ins (tokens without a row) are no longer accepted, so everyone signs in once
   more. `dev.db` got the new migration via `prisma migrate dev`.
 
+### GitHub: `main` ruleset
+
+`main` had no protection. With Gabriel's go-ahead, added the ruleset "Protect main", active on
+the default branch with no bypass, not even for admins:
+
+- Changes go through a pull request: squash merge only, and review threads must be resolved.
+  Approvals are set to 0 because GitHub doesn't let you approve your own PR, so requiring
+  one would block every merge on a solo repo.
+- The `verify` and `e2e` checks must pass, on a branch that is up to date with `main`.
+- No force pushes, no deletion, linear history.
+
 New standing rules from Gabriel: run tests locally (with the e2e suite repeated to catch
 races) and check behaviour in the app before opening a PR, never hand over a PR with a known
 bug, and give every PR a ready review comment and merge description.
