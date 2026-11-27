@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { CampaignDetail, Sheet } from '@party-sheets/shared';
 import { SheetCard } from '../components/SheetCard';
-import { SheetEditor } from '../components/SheetEditor';
+import { EditableSheet } from '../components/EditableSheet';
 
 interface Props {
   campaign: CampaignDetail;
@@ -70,7 +70,7 @@ export function DmView({ campaign, sheets, online }: Props) {
       </section>
 
       {selected && (
-        <section aria-label={`${selected.ownerName}'s full sheet`}>
+        <section aria-label={`Edit ${selected.ownerName}'s sheet`}>
           <div className="mb-3 flex items-baseline justify-between">
             <h2 className="font-display text-xl text-stone-100">
               {selected.data.characterName || 'Unnamed hero'}
@@ -84,7 +84,11 @@ export function DmView({ campaign, sheets, online }: Props) {
               Close
             </button>
           </div>
-          <SheetEditor data={selected.data} />
+          <p className="-mt-1 mb-1 text-sm text-stone-400">
+            Your changes save automatically and appear on {selected.ownerName}’s screen.
+          </p>
+          {/* Keyed by id so switching sheets starts a fresh draft. */}
+          <EditableSheet key={selected.id} sheet={selected} />
         </section>
       )}
     </div>
