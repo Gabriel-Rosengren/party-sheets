@@ -27,6 +27,9 @@ jobs:
     # database. Catches what unit and API tests can't, like tabs sharing one cookie jar.
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      # Needed by `prisma generate` during npm ci; the e2e API sets its own database.
+      DATABASE_URL: file:./ci.db
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
