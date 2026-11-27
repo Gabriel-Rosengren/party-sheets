@@ -67,6 +67,8 @@ layers:
 3. `test(e2e): add Playwright suite for per-tab accounts and realtime`
 4. `ci: run the end-to-end suite on every pull request`
 5. `docs: log per-tab accounts and the e2e suite`
+6. `ci: give the e2e job a DATABASE_URL for prisma generate`
+7. `test(e2e): wait for the register form before filling it`
 
 ### Problems hit and how they were solved
 
@@ -76,13 +78,23 @@ layers:
   slugifies them.
 - `vite dev` refuses a second dev server for the same project while `npm run dev` runs, so E2E
   uses `vite build` + `vite preview`. That is closer to production anyway.
+- **First CI run of the e2e job failed in `npm ci`:** the `postinstall` `prisma generate` needs
+  `DATABASE_URL`, which only the `verify` job set. Added it to the e2e job.
+- **Second CI run: 6/7 passed, 1 failed.** The test filled Email while the sign-in page was
+  still mounted, right after clicking "Create an account", so the value was lost ("Invalid
+  email address" in the failure snapshot). It was a test race, not an app bug: the registration
+  helper now waits for the register form first. It then passed 21/21 with `--repeat-each=3`
+  locally, and passed in CI. The strict config (`retries: 0`) is what surfaced it instead of
+  hiding it behind a retry.
 - Playwright uses the installed Google Chrome (`channel: 'chrome'`), preinstalled on GitHub's
   Ubuntu runners too, so there's no separate browser download.
 
 ### Verification
 
 - `npm test`: 4 shared + **23 server** tests passing (10 new).
-- `npm run test:e2e`: **7/7 passing** locally (~22 s).
+- `npm run test:e2e`: **7/7 passing** locally (~22 s), and 21/21 with `--repeat-each=3`.
+- CI on [PR #4](https://github.com/Gabriel-Rosengren/party-sheets/pull/4): `verify` and `e2e`
+  both green.
 - Mutation checks: making the server fall back to "most recent sign-in wins" fails 6 server tests
   and the #3 end-to-end test (`Expected "Bravo", received "Alpha"`).
 - Manual run of the reported steps in the browser: tab 1 stays the DM after tab 2 signs in as
